@@ -1,6 +1,5 @@
 package actor
 
-import actor.KsqlWebSocketActor.PerQueryActor
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, Materializer}
@@ -9,13 +8,58 @@ import play.api.Configuration
 import play.api.libs.json.Json
 import play.api.libs.ws.{WSClient, WSResponse}
 
+import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object KsqlWebSocketActor {
   def props(webSocketClient: ActorRef, ws: WSClient, cfg: Configuration): Props =
     Props(new KsqlWebSocketActor(webSocketClient, ws, cfg))
 
-  object PerQueryActor {
+  private object ResponseBatchingActor {
+    // Internal messages
+    case object SendBatch
+
+    def props(webSocketClient: ActorRef): Props =
+      Props(new ResponseBatchingActor(webSocketClient))
+
+    val BatchPeriod: FiniteDuration = 200.milliseconds
+  }
+  private class ResponseBatchingActor(webSocketClient: ActorRef) extends Actor with ActorLogging {
+    import ResponseBatchingActor._
+    import context.dispatcher
+
+    private def extractJsonArrayElems(maybeJsonArray: String): String = {
+      if (!maybeJsonArray.startsWith("[") || ! maybeJsonArray.endsWith("]")) maybeJsonArray
+      else maybeJsonArray.substring(1, maybeJsonArray.length - 2)
+    }
+
+    private val sending: Receive = {
+      case response: String =>
+        webSocketClient ! s"[${extractJsonArrayElems(response)}]"
+        context.become(batching(List()))
+        context.system.scheduler.scheduleOnce(BatchPeriod, self, SendBatch)
+    }
+
+    private def batching(bufferedResponses: List[String]): Receive = {
+      case response: String =>
+        context.become(batching(extractJsonArrayElems(response) :: bufferedResponses))
+
+      case SendBatch =>
+        bufferedResponses match {
+          case Nil =>
+            context.become(sending)
+
+          case nonEmptyResponses: List[String] =>
+            webSocketClient ! nonEmptyResponses.mkString("[", ",", "]")
+            context.become(batching(List()))
+            context.system.scheduler.scheduleOnce(BatchPeriod, self, SendBatch)
+        }
+    }
+
+    override val receive: Receive = sending
+  }
+
+  private object PerQueryActor {
     // Internal messages
     case class KsqlResponse(bodyPart: String)
     case object KsqlQueryDone
@@ -23,7 +67,7 @@ object KsqlWebSocketActor {
     def props(query: String, webSocketClient: ActorRef, ws: WSClient, cfg: Configuration): Props =
       Props(new PerQueryActor(query, webSocketClient, ws, cfg))
   }
-  class PerQueryActor(query: String, webSocketClient: ActorRef, ws: WSClient, cfg: Configuration)
+  private class PerQueryActor(query: String, webSocketClient: ActorRef, ws: WSClient, cfg: Configuration)
       extends Actor with ActorLogging {
     import PerQueryActor._
     import context.dispatcher
@@ -90,13 +134,20 @@ object KsqlWebSocketActor {
 }
 class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configuration)
     extends Actor with ActorLogging {
+  import KsqlWebSocketActor._
+
+  private val batchingWebSocketClient: ActorRef =
+    context.actorOf(ResponseBatchingActor.props(webSocketClient), "batching")
+  private val idSeq: Iterator[Int] = Iterator.from(0)
+
   private val idle: Receive = {
     case query: String =>
       context.become(
         active(
           context.watch(
             context.actorOf(
-              PerQueryActor.props(query, webSocketClient, ws, cfg)
+              PerQueryActor.props(query, batchingWebSocketClient, ws, cfg),
+              s"query-${idSeq.next}"
             )
           )
         )
