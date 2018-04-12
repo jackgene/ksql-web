@@ -136,11 +136,14 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
     extends Actor with ActorLogging {
   import KsqlWebSocketActor._
 
+  log.info("Starting KSQL session.")
   private val batchingWebSocketClient: ActorRef =
     context.actorOf(ResponseBatchingActor.props(webSocketClient), "batching")
   private val idSeq: Iterator[Int] = Iterator.from(0)
 
   private val idle: Receive = {
+    case "{}" => // Keep alive - No-op
+
     case query: String =>
       context.become(
         active(
@@ -155,8 +158,7 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   }
 
   private def active(queryActor: ActorRef): Receive = {
-    case "{}" =>
-      // Keep alive - No-op
+    case "{}" => // Keep alive - No-op
 
     case query: String =>
       context.stop(queryActor) // TODO send message and perform clean stop
@@ -167,8 +169,7 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   }
 
   private def awaitingQueryTermination(nextQuery: String, queryActor: ActorRef): Receive = {
-    case "{}" =>
-      // Keep alive - No-op
+    case "{}" => // Keep alive - No-op
 
     case query: String =>
       context.become(awaitingQueryTermination(query, queryActor))
@@ -184,4 +185,8 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   }
 
   override val receive: Receive = idle
+
+  override def postStop(): Unit = {
+    log.info("Stopping KSQL session.")
+  }
 }
