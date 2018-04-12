@@ -155,6 +155,9 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   }
 
   private def active(queryActor: ActorRef): Receive = {
+    case "{}" =>
+      // Keep alive - No-op
+
     case query: String =>
       context.stop(queryActor) // TODO send message and perform clean stop
       context.become(awaitingQueryTermination(query, queryActor))
@@ -164,6 +167,9 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   }
 
   private def awaitingQueryTermination(nextQuery: String, queryActor: ActorRef): Receive = {
+    case "{}" =>
+      // Keep alive - No-op
+
     case query: String =>
       context.become(awaitingQueryTermination(query, queryActor))
 
