@@ -30,7 +30,7 @@ object KsqlWebSocketActor {
 
     private def extractJsonArrayElems(maybeJsonArray: String): String = {
       if (!maybeJsonArray.startsWith("[") || ! maybeJsonArray.endsWith("]")) maybeJsonArray
-      else maybeJsonArray.substring(1, maybeJsonArray.length - 2)
+      else maybeJsonArray.substring(1, maybeJsonArray.length - 1)
     }
 
     private val sending: Receive = {
@@ -144,6 +144,8 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   private val idle: Receive = {
     case "{}" => // Keep alive - No-op
 
+    case """{"cmd":"stop"}""" => // No query running. No-op
+
     case query: String =>
       context.become(
         active(
@@ -160,23 +162,33 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   private def active(queryActor: ActorRef): Receive = {
     case "{}" => // Keep alive - No-op
 
+    case """{"cmd":"stop"}""" =>
+      context.stop(queryActor) // TODO send message and perform clean stop
+      context.become(awaitingQueryTermination(None, queryActor))
+
     case query: String =>
       context.stop(queryActor) // TODO send message and perform clean stop
-      context.become(awaitingQueryTermination(query, queryActor))
+      context.become(awaitingQueryTermination(Some(query), queryActor))
 
     case Terminated(`queryActor`) =>
       context.become(idle)
   }
 
-  private def awaitingQueryTermination(nextQuery: String, queryActor: ActorRef): Receive = {
+  // TODO this may not be necessary if the existing `context.stop(queryActor)` above is stopping the query cleanly
+  private def awaitingQueryTermination(nextQueryOpt: Option[String], queryActor: ActorRef): Receive = {
     case "{}" => // Keep alive - No-op
 
+    case """{"cmd":"stop"}""" =>
+      context.become(awaitingQueryTermination(None, queryActor))
+
     case query: String =>
-      context.become(awaitingQueryTermination(query, queryActor))
+      context.become(awaitingQueryTermination(Some(query), queryActor))
 
     case Terminated(`queryActor`) =>
       context.become(idle)
-      self ! nextQuery
+      for (nextQuery: String <- nextQueryOpt) {
+        self ! nextQuery
+      }
   }
 
   override def unhandled(message: Any): Unit = {
