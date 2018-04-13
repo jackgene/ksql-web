@@ -1,5 +1,43 @@
 @()
 
-@main("Welcome to Play") {
-  <h1>Welcome to Play!</h1>
+@main("KSQL Web") {
+  <script src="@routes.Assets.versioned("lib/codemirror/lib/codemirror.js")" type="text/javascript"></script>
+  <script src="@routes.Assets.versioned("lib/codemirror/mode/sql/sql.js")" type="text/javascript"></script>
+  <script src="@routes.Assets.versioned("javascripts/codemirror/mode/ksql/ksql.js")" type="text/javascript"></script>
+  <script src="@routes.Assets.versioned("javascripts/main.js")" type="text/javascript"></script>
+  <script type="text/javascript">
+    let app = Elm.Main.fullscreen(
+      { secure: window.location.protocol === "https:"
+      , host: window.location.host
+      }
+    );
+      var cm;
+
+      app.ports.codeMirrorFromTextAreaCmd.subscribe(
+        function(id) {
+          cm = CodeMirror.fromTextArea(
+            document.getElementById(id),
+            {
+              lineWrapping: true,
+              matchBrackets: true,
+              indentUnit: 2,
+              indentWithTabs: false,
+              mode: 'text/x-ksql',
+              theme: 'eclipse'
+            }
+          );
+          cm.on(
+            "changes",
+            function (cm) {
+              app.ports.codeMirrorDocValueChangedSub.send(cm.getDoc().getValue());
+            }
+          );
+        }
+      );
+      app.ports.codeMirrorDocSetValueCmd.subscribe(
+        function(value) {
+          cm.getDoc().setValue(value);
+        }
+      );
+  </script>
 }

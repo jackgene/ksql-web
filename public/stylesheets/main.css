@@ -1,0 +1,48 @@
+body {
+  margin: 0;
+  font-family: arial, helvetica, sans-serif;
+}
+
+table, th, td {
+  border: 1px solid #aaa;
+  border-collapse: collapse;
+}
+
+.error {
+  color : #e00;
+}
+
+.CodeMirror {
+  height: 120px !important;
+}
+
+.null {
+  color: #bbb;
+}
+
+#control {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  padding: 4px;
+}
+
+#input {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  right: 0;
+}
+
+#output {
+  position: absolute;
+  top: 144px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px;
+  font-size: 0.8em;
+  overflow: scroll;
+}
