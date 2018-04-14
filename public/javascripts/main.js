@@ -10005,14 +10005,14 @@ var _connexity$ksql_web$Main$update = F2(
 						'{\"cmd\":\"stop\"}')
 				};
 			case 'QueryResponse':
-				var _p9 = _p3._0;
+				var _p10 = _p3._0;
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
 						var _p6 = A2(
 							_elm_lang$core$Json_Decode$decodeString,
 							_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-							_p9);
+							_p10);
 						if (_p6.ctor === 'Ok') {
 							return A3(
 								_elm_lang$core$List$foldl,
@@ -10128,17 +10128,22 @@ var _connexity$ksql_web$Main$update = F2(
 															})
 													});
 											default:
+												var errorMessages = function () {
+													var _p8 = _elm_lang$core$String$lines(_p7._0._0);
+													if (_p8.ctor === '::') {
+														return {
+															ctor: '::',
+															_0: _p8._0,
+															_1: {ctor: '[]'}
+														};
+													} else {
+														return {ctor: '[]'};
+													}
+												}();
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														errorMessages: A2(
-															_elm_lang$core$Basics_ops['++'],
-															model.errorMessages,
-															{
-																ctor: '::',
-																_0: _p7._0._0,
-																_1: {ctor: '[]'}
-															})
+														errorMessages: A2(_elm_lang$core$Basics_ops['++'], model.errorMessages, errorMessages)
 													});
 										}
 									}),
@@ -10150,15 +10155,15 @@ var _connexity$ksql_web$Main$update = F2(
 								{
 									errorMessages: {
 										ctor: '::',
-										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p9),
+										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p10),
 										_1: {ctor: '[]'}
 									}
 								});
 						}
 					}(),
 					_1: function () {
-						var _p8 = model.maybeBufferedResult;
-						if (_p8.ctor === 'Just') {
+						var _p9 = model.maybeBufferedResult;
+						if (_p9.ctor === 'Just') {
 							return _elm_lang$core$Platform_Cmd$none;
 						} else {
 							return A2(

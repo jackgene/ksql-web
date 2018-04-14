@@ -250,7 +250,14 @@ update msg model =
                   (NotificationResponse msg, _) ->
                     { model | notifications = model.notifications ++ [ msg ] }
                   (ErrorMessageResponse msg, _) ->
-                    { model | errorMessages = model.errorMessages ++ [ msg ] }
+                    let
+                      errorMessages : List String
+                      errorMessages =
+                        case String.lines msg of
+                          errorMessage :: _ -> [ errorMessage ]
+                          [] -> []
+                    in
+                      { model | errorMessages = model.errorMessages ++ errorMessages }
               )
               model
               responses
