@@ -9,10 +9,17 @@
     let app = Elm.Main.fullscreen(
       { secure: window.location.protocol === "https:"
       , host: window.location.host
+      , initialQuery : localStorage.getItem("query") || ""
       }
     );
       var cm;
 
+      app.ports.localStorageSetItemCmd.subscribe(
+        function(keyValue) {
+          let [key, value] = keyValue;
+          window.localStorage.setItem(key, value);
+        }
+      );
       app.ports.codeMirrorFromTextAreaCmd.subscribe(
         function(id) {
           cm = CodeMirror.fromTextArea(
@@ -37,6 +44,7 @@
       app.ports.codeMirrorDocSetValueCmd.subscribe(
         function(value) {
           cm.getDoc().setValue(value);
+          cm.setCursor(cm.lineCount(), 0);
         }
       );
   </script>

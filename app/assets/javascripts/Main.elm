@@ -12,37 +12,38 @@ import Time exposing (Time, second)
 import WebSocket
 
 
-maxDisplayedRows : Int
-maxDisplayedRows = 10000
-
-
-webSocketUrl : Request -> String
-webSocketUrl request =
-  (if request.secure then "wss" else "ws") ++ "://" ++ request.host ++ "/ksql"
-
-
+port localStorageSetItemCmd : (String, String) -> Cmd msg
 port codeMirrorFromTextAreaCmd : String -> Cmd msg
 port codeMirrorDocSetValueCmd : String -> Cmd msg
 port codeMirrorDocValueChangedSub : (String -> msg) -> Sub msg
 
 
 -- Model
-type alias Request =
+type alias Flags =
   { secure : Bool
   , host : String
+  , initialQuery : String
   }
+
+
 type Column
   = BoolColumn Bool
   | IntColumn Int
   | StringColumn String
   | NullColumn
+
+
 type alias Row = List Column
+
+
 type alias QueryResult =
   { headerRow : Maybe Row
   , dataRows : List Row
   }
+
+
 type alias Model =
-  { request : Request
+  { flags : Flags
   , query : String
   , result : QueryResult
   , maybeBufferedDataRows : Maybe (List Row)
@@ -51,10 +52,18 @@ type alias Model =
   }
 
 
-init : Request -> (Model, Cmd Msg)
-init request =
-  ( Model request "" (QueryResult Nothing []) Nothing [] []
-  , codeMirrorFromTextAreaCmd "source"
+webSocketUrl : Flags -> String
+webSocketUrl flag =
+  (if flag.secure then "wss" else "ws") ++ "://" ++ flag.host ++ "/ksql"
+
+
+init : Flags -> (Model, Cmd Msg)
+init flags =
+  ( Model flags "" (QueryResult Nothing []) Nothing [] []
+  , Cmd.batch
+    [ codeMirrorDocSetValueCmd flags.initialQuery
+    , codeMirrorFromTextAreaCmd "source"
+    ]
   )
 
 
@@ -284,6 +293,10 @@ responseDecoder =
       ]
 
 
+maxDisplayedRows : Int
+maxDisplayedRows = 10000
+
+
 displayedDataRows : List Row -> List Row
 displayedDataRows dataRows =
   List.take maxDisplayedRows dataRows
@@ -306,7 +319,7 @@ update msg model =
   case msg of
     ChangeQuery query ->
       ( { model | query = query }
-      , Cmd.none
+      , localStorageSetItemCmd ("query", query)
       )
     RunQuery ->
       ( { model
@@ -315,7 +328,7 @@ update msg model =
         , notifications = []
         , errorMessages = []
         }
-      , WebSocket.send (webSocketUrl model.request) (Encode.encode 0 (ksqlCommandJson model.query))
+      , WebSocket.send (webSocketUrl model.flags) (Encode.encode 0 (ksqlCommandJson model.query))
       )
     PauseQuery ->
       ( case model.maybeBufferedDataRows of
@@ -330,7 +343,7 @@ update msg model =
             unpauseQuery bufferedDataRows model
           Nothing ->
             model
-      , WebSocket.send (webSocketUrl model.request) """{"cmd":"stop"}"""
+      , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
     QueryResponse responseJson ->
       ( case Decode.decodeString (Decode.list responseDecoder) responseJson of
@@ -410,7 +423,7 @@ update msg model =
       )
     SendWebSocketKeepAlive _ ->
       ( model
-      , WebSocket.send (webSocketUrl model.request) "{}"
+      , WebSocket.send (webSocketUrl model.flags) "{}"
       )
     ConsoleScrolled _ ->
       ( model, Cmd.none ) -- No-op
@@ -422,7 +435,7 @@ subscriptions model =
   Sub.batch
     [ codeMirrorDocValueChangedSub ChangeQuery
     , Time.every (60 * second) SendWebSocketKeepAlive
-    , WebSocket.listen (webSocketUrl model.request) QueryResponse
+    , WebSocket.listen (webSocketUrl model.flags) QueryResponse
     ]
 
 
@@ -496,7 +509,7 @@ view model =
   ]
 
 
-main : Program Request Model Msg
+main : Program Flags Model Msg
 main =
   Html.programWithFlags
     { init = init

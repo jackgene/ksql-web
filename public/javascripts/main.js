@@ -9501,6 +9501,25 @@ var _connexity$ksql_web$Main$rowView = F2(
 				_connexity$ksql_web$Main$colView(isHeader),
 				row));
 	});
+var _connexity$ksql_web$Main$maxDisplayedRows = 10000;
+var _connexity$ksql_web$Main$displayedDataRows = function (dataRows) {
+	return A2(_elm_lang$core$List$take, _connexity$ksql_web$Main$maxDisplayedRows, dataRows);
+};
+var _connexity$ksql_web$Main$unpauseQuery = F2(
+	function (bufferedDataRows, model) {
+		var result = model.result;
+		return _elm_lang$core$Native_Utils.update(
+			model,
+			{
+				result: _elm_lang$core$Native_Utils.update(
+					result,
+					{
+						dataRows: _connexity$ksql_web$Main$displayedDataRows(
+							A2(_elm_lang$core$Basics_ops['++'], result.dataRows, bufferedDataRows))
+					}),
+				maybeBufferedDataRows: _elm_lang$core$Maybe$Nothing
+			});
+	});
 var _connexity$ksql_web$Main$errorMessageObjectDecoder = A2(
 	_elm_lang$core$Json_Decode$at,
 	{
@@ -9583,33 +9602,19 @@ var _connexity$ksql_web$Main$ksqlCommandJson = function (query) {
 			_1: {ctor: '[]'}
 		});
 };
-var _connexity$ksql_web$Main$webSocketUrl = function (request) {
+var _connexity$ksql_web$Main$webSocketUrl = function (flag) {
 	return A2(
 		_elm_lang$core$Basics_ops['++'],
-		request.secure ? 'wss' : 'ws',
+		flag.secure ? 'wss' : 'ws',
 		A2(
 			_elm_lang$core$Basics_ops['++'],
 			'://',
-			A2(_elm_lang$core$Basics_ops['++'], request.host, '/ksql')));
+			A2(_elm_lang$core$Basics_ops['++'], flag.host, '/ksql')));
 };
-var _connexity$ksql_web$Main$maxDisplayedRows = 10000;
-var _connexity$ksql_web$Main$displayedDataRows = function (dataRows) {
-	return A2(_elm_lang$core$List$take, _connexity$ksql_web$Main$maxDisplayedRows, dataRows);
-};
-var _connexity$ksql_web$Main$unpauseQuery = F2(
-	function (bufferedDataRows, model) {
-		var result = model.result;
-		return _elm_lang$core$Native_Utils.update(
-			model,
-			{
-				result: _elm_lang$core$Native_Utils.update(
-					result,
-					{
-						dataRows: _connexity$ksql_web$Main$displayedDataRows(
-							A2(_elm_lang$core$Basics_ops['++'], result.dataRows, bufferedDataRows))
-					}),
-				maybeBufferedDataRows: _elm_lang$core$Maybe$Nothing
-			});
+var _connexity$ksql_web$Main$localStorageSetItemCmd = _elm_lang$core$Native_Platform.outgoingPort(
+	'localStorageSetItemCmd',
+	function (v) {
+		return [v._0, v._1];
 	});
 var _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd = _elm_lang$core$Native_Platform.outgoingPort(
 	'codeMirrorFromTextAreaCmd',
@@ -9622,9 +9627,9 @@ var _connexity$ksql_web$Main$codeMirrorDocSetValueCmd = _elm_lang$core$Native_Pl
 		return v;
 	});
 var _connexity$ksql_web$Main$codeMirrorDocValueChangedSub = _elm_lang$core$Native_Platform.incomingPort('codeMirrorDocValueChangedSub', _elm_lang$core$Json_Decode$string);
-var _connexity$ksql_web$Main$Request = F2(
-	function (a, b) {
-		return {secure: a, host: b};
+var _connexity$ksql_web$Main$Flags = F3(
+	function (a, b, c) {
+		return {secure: a, host: b, initialQuery: c};
 	});
 var _connexity$ksql_web$Main$QueryResult = F2(
 	function (a, b) {
@@ -9632,14 +9637,14 @@ var _connexity$ksql_web$Main$QueryResult = F2(
 	});
 var _connexity$ksql_web$Main$Model = F6(
 	function (a, b, c, d, e, f) {
-		return {request: a, query: b, result: c, maybeBufferedDataRows: d, notifications: e, errorMessages: f};
+		return {flags: a, query: b, result: c, maybeBufferedDataRows: d, notifications: e, errorMessages: f};
 	});
-var _connexity$ksql_web$Main$init = function (request) {
+var _connexity$ksql_web$Main$init = function (flags) {
 	return {
 		ctor: '_Tuple2',
 		_0: A6(
 			_connexity$ksql_web$Main$Model,
-			request,
+			flags,
 			'',
 			A2(
 				_connexity$ksql_web$Main$QueryResult,
@@ -9648,7 +9653,16 @@ var _connexity$ksql_web$Main$init = function (request) {
 			_elm_lang$core$Maybe$Nothing,
 			{ctor: '[]'},
 			{ctor: '[]'}),
-		_1: _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd('source')
+		_1: _elm_lang$core$Platform_Cmd$batch(
+			{
+				ctor: '::',
+				_0: _connexity$ksql_web$Main$codeMirrorDocSetValueCmd(flags.initialQuery),
+				_1: {
+					ctor: '::',
+					_0: _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd('source'),
+					_1: {ctor: '[]'}
+				}
+			})
 	};
 };
 var _connexity$ksql_web$Main$NullColumn = {ctor: 'NullColumn'};
@@ -10123,7 +10137,7 @@ var _connexity$ksql_web$Main$subscriptions = function (model) {
 					ctor: '::',
 					_0: A2(
 						_elm_lang$websocket$WebSocket$listen,
-						_connexity$ksql_web$Main$webSocketUrl(model.request),
+						_connexity$ksql_web$Main$webSocketUrl(model.flags),
 						_connexity$ksql_web$Main$QueryResponse),
 					_1: {ctor: '[]'}
 				}
@@ -10231,12 +10245,14 @@ var _connexity$ksql_web$Main$update = F2(
 		var _p12 = msg;
 		switch (_p12.ctor) {
 			case 'ChangeQuery':
+				var _p13 = _p12._0;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{query: _p12._0}),
-					_1: _elm_lang$core$Platform_Cmd$none
+						{query: _p13}),
+					_1: _connexity$ksql_web$Main$localStorageSetItemCmd(
+						{ctor: '_Tuple2', _0: 'query', _1: _p13})
 				};
 			case 'RunQuery':
 				return {
@@ -10254,7 +10270,7 @@ var _connexity$ksql_web$Main$update = F2(
 						}),
 					_1: A2(
 						_elm_lang$websocket$WebSocket$send,
-						_connexity$ksql_web$Main$webSocketUrl(model.request),
+						_connexity$ksql_web$Main$webSocketUrl(model.flags),
 						A2(
 							_elm_lang$core$Json_Encode$encode,
 							0,
@@ -10264,9 +10280,9 @@ var _connexity$ksql_web$Main$update = F2(
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p13 = model.maybeBufferedDataRows;
-						if (_p13.ctor === 'Just') {
-							return A2(_connexity$ksql_web$Main$unpauseQuery, _p13._0, model);
+						var _p14 = model.maybeBufferedDataRows;
+						if (_p14.ctor === 'Just') {
+							return A2(_connexity$ksql_web$Main$unpauseQuery, _p14._0, model);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
@@ -10282,36 +10298,36 @@ var _connexity$ksql_web$Main$update = F2(
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p14 = model.maybeBufferedDataRows;
-						if (_p14.ctor === 'Just') {
-							return A2(_connexity$ksql_web$Main$unpauseQuery, _p14._0, model);
+						var _p15 = model.maybeBufferedDataRows;
+						if (_p15.ctor === 'Just') {
+							return A2(_connexity$ksql_web$Main$unpauseQuery, _p15._0, model);
 						} else {
 							return model;
 						}
 					}(),
 					_1: A2(
 						_elm_lang$websocket$WebSocket$send,
-						_connexity$ksql_web$Main$webSocketUrl(model.request),
+						_connexity$ksql_web$Main$webSocketUrl(model.flags),
 						'{\"cmd\":\"stop\"}')
 				};
 			case 'QueryResponse':
-				var _p19 = _p12._0;
+				var _p20 = _p12._0;
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p15 = A2(
+						var _p16 = A2(
 							_elm_lang$core$Json_Decode$decodeString,
 							_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-							_p19);
-						if (_p15.ctor === 'Ok') {
+							_p20);
+						if (_p16.ctor === 'Ok') {
 							return A3(
 								_elm_lang$core$List$foldr,
 								F2(
 									function (response, model) {
-										var _p16 = {ctor: '_Tuple2', _0: response, _1: model.maybeBufferedDataRows};
-										switch (_p16._0.ctor) {
+										var _p17 = {ctor: '_Tuple2', _0: response, _1: model.maybeBufferedDataRows};
+										switch (_p17._0.ctor) {
 											case 'RowResponse':
-												if (_p16._1.ctor === 'Nothing') {
+												if (_p17._1.ctor === 'Nothing') {
 													var result = model.result;
 													return _elm_lang$core$Native_Utils.update(
 														model,
@@ -10320,7 +10336,7 @@ var _connexity$ksql_web$Main$update = F2(
 																result,
 																{
 																	dataRows: _connexity$ksql_web$Main$displayedDataRows(
-																		{ctor: '::', _0: _p16._0._0, _1: model.result.dataRows})
+																		{ctor: '::', _0: _p17._0._0, _1: model.result.dataRows})
 																})
 														});
 												} else {
@@ -10328,7 +10344,7 @@ var _connexity$ksql_web$Main$update = F2(
 														model,
 														{
 															maybeBufferedDataRows: _elm_lang$core$Maybe$Just(
-																{ctor: '::', _0: _p16._0._0, _1: _p16._1._0})
+																{ctor: '::', _0: _p17._0._0, _1: _p17._1._0})
 														});
 												}
 											case 'ShowPropertiesResponse':
@@ -10347,7 +10363,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		_1: {ctor: '[]'}
 																	}
 																}),
-															_p16._0._0)
+															_p17._0._0)
 													});
 											case 'ShowQueriesResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10369,7 +10385,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p16._0._0)
+															_p17._0._0)
 													});
 											case 'ShowStreamsResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10391,7 +10407,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p16._0._0)
+															_p17._0._0)
 													});
 											case 'ShowTablesResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10417,7 +10433,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p16._0._0)
+															_p17._0._0)
 													});
 											case 'ShowTopicsResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10451,7 +10467,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p16._0._0)
+															_p17._0._0)
 													});
 											case 'DescribeResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10469,19 +10485,19 @@ var _connexity$ksql_web$Main$update = F2(
 																		_1: {ctor: '[]'}
 																	}
 																}),
-															_p16._0._0)
+															_p17._0._0)
 													});
 											case 'NotificationResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														notifications: {ctor: '::', _0: _p16._0._0, _1: model.notifications}
+														notifications: {ctor: '::', _0: _p17._0._0, _1: model.notifications}
 													});
 											default:
 												var newErrorMessages = function () {
-													var _p17 = _elm_lang$core$String$lines(_p16._0._0);
-													if (_p17.ctor === '::') {
-														return {ctor: '::', _0: _p17._0, _1: model.errorMessages};
+													var _p18 = _elm_lang$core$String$lines(_p17._0._0);
+													if (_p18.ctor === '::') {
+														return {ctor: '::', _0: _p18._0, _1: model.errorMessages};
 													} else {
 														return model.errorMessages;
 													}
@@ -10492,22 +10508,22 @@ var _connexity$ksql_web$Main$update = F2(
 										}
 									}),
 								model,
-								_p15._0);
+								_p16._0);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
 								{
 									errorMessages: {
 										ctor: '::',
-										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p19),
+										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p20),
 										_1: {ctor: '[]'}
 									}
 								});
 						}
 					}(),
 					_1: function () {
-						var _p18 = model.maybeBufferedDataRows;
-						if (_p18.ctor === 'Just') {
+						var _p19 = model.maybeBufferedDataRows;
+						if (_p19.ctor === 'Just') {
 							return _elm_lang$core$Platform_Cmd$none;
 						} else {
 							return A2(
@@ -10523,7 +10539,7 @@ var _connexity$ksql_web$Main$update = F2(
 					_0: model,
 					_1: A2(
 						_elm_lang$websocket$WebSocket$send,
-						_connexity$ksql_web$Main$webSocketUrl(model.request),
+						_connexity$ksql_web$Main$webSocketUrl(model.flags),
 						'{}')
 				};
 			default:
@@ -10537,11 +10553,16 @@ var _connexity$ksql_web$Main$main = _elm_lang$html$Html$programWithFlags(
 		function (host) {
 			return A2(
 				_elm_lang$core$Json_Decode$andThen,
-				function (secure) {
-					return _elm_lang$core$Json_Decode$succeed(
-						{host: host, secure: secure});
+				function (initialQuery) {
+					return A2(
+						_elm_lang$core$Json_Decode$andThen,
+						function (secure) {
+							return _elm_lang$core$Json_Decode$succeed(
+								{host: host, initialQuery: initialQuery, secure: secure});
+						},
+						A2(_elm_lang$core$Json_Decode$field, 'secure', _elm_lang$core$Json_Decode$bool));
 				},
-				A2(_elm_lang$core$Json_Decode$field, 'secure', _elm_lang$core$Json_Decode$bool));
+				A2(_elm_lang$core$Json_Decode$field, 'initialQuery', _elm_lang$core$Json_Decode$string));
 		},
 		A2(_elm_lang$core$Json_Decode$field, 'host', _elm_lang$core$Json_Decode$string)));
 
