@@ -76,7 +76,7 @@ type Response
   | ShowStreamsResponse (List Row)
   | ShowTablesResponse (List Row)
   | ShowTopicsResponse (List Row)
-  | DescribeResponse (List Row) String
+  | DescribeResponse (List Row)
   | NotificationResponse String
   | ErrorMessageResponse String
 
@@ -198,6 +198,14 @@ descriptionObjectDecoder =
       (Decode.at [ "description", "executionPlan" ] Decode.string)
 
 
+currentStatusObjectDecoder : Decode.Decoder (Bool, String)
+currentStatusObjectDecoder =
+  Decode.map2
+    (\status -> \message -> (status == "SUCCESS", message))
+    (Decode.at [ "currentStatus", "commandStatus", "status" ] Decode.string)
+    (Decode.at [ "currentStatus", "commandStatus", "message" ] Decode.string)
+
+
 notificationObjectDecoder : Decode.Decoder String
 notificationObjectDecoder =
   Decode.at [ "errorMessage", "message" ] Decode.string
@@ -237,7 +245,22 @@ responseDecoder =
 
     descrRespDecoder : Decode.Decoder Response
     descrRespDecoder =
-      Decode.map (uncurry DescribeResponse) descriptionObjectDecoder
+      Decode.map
+        ( \(schema, executionPlan) ->
+          if not (List.isEmpty schema) then DescribeResponse schema
+          else if not (String.isEmpty executionPlan) then NotificationResponse executionPlan
+          else ErrorMessageResponse "Description response has neither schema nor executionPlan."
+        )
+        descriptionObjectDecoder
+
+    curStatusDecoder : Decode.Decoder Response
+    curStatusDecoder =
+      Decode.map
+        ( \(success, message) ->
+          if success then NotificationResponse message
+          else ErrorMessageResponse message
+        )
+        currentStatusObjectDecoder
 
     notificationRespDecoder : Decode.Decoder Response
     notificationRespDecoder =
@@ -255,6 +278,7 @@ responseDecoder =
       , tablesRespDecoder
       , topicsRespDecoder
       , descrRespDecoder
+      , curStatusDecoder
       , notificationRespDecoder
       , errorMessageRespDecoder
       ]
@@ -357,18 +381,13 @@ update msg model =
                         ( Just [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ])
                         topics
                     }
-                  (DescribeResponse metaRows executionPlan, _) ->
-                    if not (List.isEmpty metaRows) then
-                      { model
-                      | result
-                        = QueryResult
-                          ( Just [ StringColumn "name", StringColumn "type" ])
-                          metaRows
-                      }
-                    else if not (String.isEmpty executionPlan) then
-                      { model | notifications = [ executionPlan ] }
-                    else
-                      { model | errorMessages = [ "Unhandled description response: " ++ responseJson ] }
+                  (DescribeResponse metaRows, _) ->
+                    { model
+                    | result
+                      = QueryResult
+                        ( Just [ StringColumn "name", StringColumn "type" ])
+                        metaRows
+                    }
                   (NotificationResponse msg, _) ->
                     { model | notifications = msg :: model.notifications }
                   (ErrorMessageResponse msg, _) ->
@@ -431,9 +450,11 @@ rowView isHeader row =
 messagesView : Maybe String -> List String -> Html Msg
 messagesView maybeClassName messages =
   div
-    ( case maybeClassName of
-        Just className -> [ class className ]
-        Nothing -> []
+    ( class "messages" ::
+      ( case maybeClassName of
+          Just className -> [ class className ]
+          Nothing -> []
+      )
     )
     ( List.map
       (\msg -> pre [] [ text msg ])
