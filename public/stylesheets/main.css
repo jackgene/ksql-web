@@ -13,7 +13,7 @@ table, th, td {
 }
 
 .CodeMirror {
-  height: 120px !important;
+  height: 95px !important;
 }
 
 .null {
@@ -34,15 +34,15 @@ table, th, td {
   top: 24px;
   left: 0;
   right: 0;
+  border-bottom: 1px solid #aaa;
 }
 
 #output {
   position: absolute;
-  top: 144px;
+  top: 120px;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 2px;
   font-size: 0.8em;
   overflow: scroll;
 }
