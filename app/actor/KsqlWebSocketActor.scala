@@ -1,6 +1,6 @@
 package actor
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props, Status, Terminated}
 import akka.pattern.pipe
 import akka.stream.{ActorMaterializer, Materializer}
 import com.fasterxml.jackson.core.JsonParseException
@@ -116,6 +116,12 @@ object KsqlWebSocketActor {
       case Stop =>
         log.debug("Received stop request.")
         context.stop(self)
+
+      case Status.Failure(t: Throwable) =>
+        val msg = "Failed to connect to KSQL service, make sure the service is running, and ksql.service.base.url is set correctly."
+        log.error(t, msg)
+        // Mimics KSQL's error message JSON
+        webSocketClient ! s"""{"error":{"errorMessage":{"message":"${msg}: ${t.getMessage}"}}}"""
     }
 
     private def processingResponseBody(incompleteBody: String, done: Boolean): Receive = {
@@ -152,6 +158,10 @@ object KsqlWebSocketActor {
     }
 
     override def receive: Receive = PartialFunction.empty
+
+    override def unhandled(message: Any): Unit = {
+      log.warning(s"Unhandled message:\n${message}")
+    }
 
     sendKsqlServiceRequest()
   }
@@ -224,7 +234,7 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
   }
 
   override def unhandled(message: Any): Unit = {
-    log.warning(s"Unhandled message ${message}.")
+    log.warning(s"Unhandled message\n${message}")
     super.unhandled(message)
   }
 
