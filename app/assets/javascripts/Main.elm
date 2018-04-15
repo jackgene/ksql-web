@@ -71,9 +71,12 @@ type Msg
 
 type Response
   = RowResponse Row
+  | ShowPropertiesResponse (List Row)
+  | ShowQueriesResponse (List Row)
   | ShowStreamsResponse (List Row)
   | ShowTablesResponse (List Row)
-  | DescribeResponse (List Row)
+  | ShowTopicsResponse (List Row)
+  | DescribeResponse (List Row) String
   | NotificationResponse String
   | ErrorMessageResponse String
 
@@ -83,71 +86,116 @@ ksqlCommandJson query =
   Encode.object [ ("ksql", Encode.string query) ]
 
 
-boolColumnDecoder : Decode.Decoder Column
-boolColumnDecoder =
-  Decode.map BoolColumn Decode.bool
-
-
-intColumnDecoder : Decode.Decoder Column
-intColumnDecoder =
-  Decode.map IntColumn Decode.int
-
-
-stringColumnDecoder : Decode.Decoder Column
-stringColumnDecoder =
-  Decode.map StringColumn Decode.string
-
-
 columnDecoder : Decode.Decoder Column
 columnDecoder =
   let
+    boolColumnDecoder : Decode.Decoder Column
+    boolColumnDecoder = Decode.map BoolColumn Decode.bool
+
+    intColumnDecoder : Decode.Decoder Column
+    intColumnDecoder = Decode.map IntColumn Decode.int
+
+    stringColumnDecoder : Decode.Decoder Column
+    stringColumnDecoder = Decode.map StringColumn Decode.string
+
     nullColumnDecoder : Decode.Decoder Column
-    nullColumnDecoder =
-      Decode.null NullColumn
+    nullColumnDecoder = Decode.null NullColumn
   in
     Decode.oneOf [ boolColumnDecoder, intColumnDecoder, stringColumnDecoder, nullColumnDecoder ]
 
 
-rowDecoder : Decode.Decoder Row
-rowDecoder =
-  Decode.list columnDecoder
-
-
 rowObjectDecoder : Decode.Decoder Row
 rowObjectDecoder =
-  Decode.at [ "row", "columns" ] rowDecoder
+  let
+    rowDecoder : Decode.Decoder Row
+    rowDecoder = Decode.list columnDecoder
+  in
+    Decode.at [ "row", "columns" ] rowDecoder
 
 
-showRelationEntryDecoder : Decode.Decoder Row
-showRelationEntryDecoder =
-  Decode.map3
-    (\name -> \topic -> \format -> [ name, topic, format ])
-    (Decode.field "name" stringColumnDecoder)
-    (Decode.field "topic" stringColumnDecoder)
-    (Decode.field "format" stringColumnDecoder)
+propertiesObjectDecoder : Decode.Decoder (List Row)
+propertiesObjectDecoder =
+  Decode.map
+    (\kvPairs -> List.map (\(k, v) -> [ StringColumn k, v ]) kvPairs)
+    (Decode.at [ "properties", "properties" ] (Decode.keyValuePairs columnDecoder))
+
+
+queriesObjectDecoder : Decode.Decoder (List Row)
+queriesObjectDecoder =
+  let
+    entryDecoder : Decode.Decoder Row
+    entryDecoder =
+      Decode.map3
+        (\id -> \kafkaTopic -> \queryString -> [ id, kafkaTopic, queryString ])
+        (Decode.at [ "id", "id" ] columnDecoder)
+        (Decode.field "queryString" columnDecoder)
+        (Decode.field "kafkaTopic" columnDecoder)
+  in
+    Decode.at [ "queries", "queries" ] (Decode.list entryDecoder)
 
 
 streamsObjectDecoder : Decode.Decoder (List Row)
 streamsObjectDecoder =
-  Decode.at [ "streams", "streams" ] (Decode.list showRelationEntryDecoder)
+  let
+    entryDecoder : Decode.Decoder Row
+    entryDecoder =
+      Decode.map3
+        (\name -> \topic -> \format -> [ name, topic, format ])
+        (Decode.field "name" columnDecoder)
+        (Decode.field "topic" columnDecoder)
+        (Decode.field "format" columnDecoder)
+  in
+    Decode.at [ "streams", "streams" ] (Decode.list entryDecoder)
 
 
 tablesObjectDecoder : Decode.Decoder (List Row)
 tablesObjectDecoder =
-  Decode.at [ "tables", "tables" ] (Decode.list showRelationEntryDecoder)
+  let
+    entryDecoder : Decode.Decoder Row
+    entryDecoder =
+      Decode.map4
+        (\name -> \topic -> \format -> \windowed -> [ name, topic, format, windowed ])
+        (Decode.field "name" columnDecoder)
+        (Decode.field "topic" columnDecoder)
+        (Decode.field "format" columnDecoder)
+        (Decode.field "isWindowed" columnDecoder)
+  in
+    Decode.at [ "tables", "tables" ] (Decode.list entryDecoder)
 
 
-columnMetadataEntryDecoder : Decode.Decoder Row
-columnMetadataEntryDecoder =
-  Decode.map2
-    (\name -> \typename -> [ name, typename ])
-    (Decode.field "name" stringColumnDecoder)
-    (Decode.field "type" stringColumnDecoder)
+topicsObjectDecoder : Decode.Decoder (List Row)
+topicsObjectDecoder =
+  let
+    entryDecoder : Decode.Decoder Row
+    entryDecoder =
+      Decode.map6
+        (\name -> \registered -> \parts -> \partsReplica -> \consumers -> \consumerGroups ->
+          [ name, registered, parts, partsReplica, consumers, consumerGroups ]
+        )
+        (Decode.field "name" columnDecoder)
+        (Decode.field "registered" columnDecoder)
+        (Decode.field "partitionCount" columnDecoder)
+        (Decode.field "replicaInfo" columnDecoder)
+        (Decode.field "consumerCount" columnDecoder)
+        (Decode.field "consumerGroupCount" columnDecoder)
+  in
+    Decode.at [ "kafka_topics", "topics" ] (Decode.list entryDecoder)
 
 
-descriptionObjectDecoder : Decode.Decoder (List Row)
+descriptionObjectDecoder : Decode.Decoder ((List Row), String)
 descriptionObjectDecoder =
-  Decode.at [ "description", "schema" ] (Decode.list columnMetadataEntryDecoder)
+  let
+    entryDecoder : Decode.Decoder Row
+    entryDecoder =
+      Decode.map2
+        (\name -> \typename -> [ name, typename ])
+        (Decode.field "name" columnDecoder)
+        (Decode.field "type" columnDecoder)
+  in
+    Decode.map2
+      (\schema -> \executionPlan -> (schema, executionPlan))
+      (Decode.at [ "description", "schema" ] (Decode.list entryDecoder))
+      (Decode.at [ "description", "executionPlan" ] Decode.string)
 
 
 notificationObjectDecoder : Decode.Decoder String
@@ -167,6 +215,14 @@ responseDecoder =
     rowRespDecoder =
       Decode.map RowResponse rowObjectDecoder
 
+    propertiesRespDecoder : Decode.Decoder Response
+    propertiesRespDecoder =
+      Decode.map ShowPropertiesResponse propertiesObjectDecoder
+
+    queriesRespDecoder : Decode.Decoder Response
+    queriesRespDecoder =
+      Decode.map ShowQueriesResponse queriesObjectDecoder
+
     streamsRespDecoder : Decode.Decoder Response
     streamsRespDecoder =
       Decode.map ShowStreamsResponse streamsObjectDecoder
@@ -175,9 +231,13 @@ responseDecoder =
     tablesRespDecoder =
       Decode.map ShowTablesResponse tablesObjectDecoder
 
+    topicsRespDecoder : Decode.Decoder Response
+    topicsRespDecoder =
+      Decode.map ShowTopicsResponse topicsObjectDecoder
+
     descrRespDecoder : Decode.Decoder Response
     descrRespDecoder =
-      Decode.map DescribeResponse descriptionObjectDecoder
+      Decode.map (uncurry DescribeResponse) descriptionObjectDecoder
 
     notificationRespDecoder : Decode.Decoder Response
     notificationRespDecoder =
@@ -189,8 +249,11 @@ responseDecoder =
   in
     Decode.oneOf
       [ rowRespDecoder
+      , propertiesRespDecoder
+      , queriesRespDecoder
       , streamsRespDecoder
       , tablesRespDecoder
+      , topicsRespDecoder
       , descrRespDecoder
       , notificationRespDecoder
       , errorMessageRespDecoder
@@ -259,27 +322,53 @@ update msg model =
                       { model | result = { result | dataRows = displayedDataRows (row :: model.result.dataRows) } }
                   (RowResponse row, Just bufferedDataRows) ->
                     { model | maybeBufferedDataRows = Just (row :: bufferedDataRows) }
+                  (ShowPropertiesResponse properties, _) ->
+                    { model
+                    | result
+                      = QueryResult
+                        ( Just [ StringColumn "Property", StringColumn "Value" ])
+                        properties
+                    }
+                  (ShowQueriesResponse queries, _) ->
+                    { model
+                    | result
+                      = QueryResult
+                        ( Just [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ])
+                        queries
+                    }
                   (ShowStreamsResponse streams, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "name", StringColumn "topic", StringColumn "format" ])
+                        ( Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format" ])
                         streams
                     }
                   (ShowTablesResponse tables, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "name", StringColumn "topic", StringColumn "format" ])
+                        ( Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format", StringColumn "Windowed" ])
                         tables
                     }
-                  (DescribeResponse metaRows, _) ->
+                  (ShowTopicsResponse topics, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "name", StringColumn "type" ])
-                        metaRows
+                        ( Just [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ])
+                        topics
                     }
+                  (DescribeResponse metaRows executionPlan, _) ->
+                    if not (List.isEmpty metaRows) then
+                      { model
+                      | result
+                        = QueryResult
+                          ( Just [ StringColumn "name", StringColumn "type" ])
+                          metaRows
+                      }
+                    else if not (String.isEmpty executionPlan) then
+                      { model | notifications = [ executionPlan ] }
+                    else
+                      { model | errorMessages = [ "Unhandled description response: " ++ responseJson ] }
                   (NotificationResponse msg, _) ->
                     { model | notifications = msg :: model.notifications }
                   (ErrorMessageResponse msg, _) ->
@@ -347,7 +436,7 @@ messagesView maybeClassName messages =
         Nothing -> []
     )
     ( List.map
-      (\msg -> p [] [ text msg ])
+      (\msg -> pre [] [ text msg ])
       messages
     )
 

@@ -4,8 +4,14 @@ body {
 }
 
 table, th, td {
+  vertical-align: top;
   border: 1px solid #aaa;
   border-collapse: collapse;
+}
+
+pre {
+  font-size: 1.25em;
+  white-space: pre-wrap;
 }
 
 .error {
