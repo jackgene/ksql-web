@@ -22,7 +22,7 @@ object KsqlWebSocketActor {
     def props(webSocketClient: ActorRef): Props =
       Props(new ResponseBatchingActor(webSocketClient))
 
-    val BatchPeriod: FiniteDuration = 200.milliseconds
+    val BatchPeriod: FiniteDuration = 20.milliseconds
   }
   private class ResponseBatchingActor(webSocketClient: ActorRef) extends Actor with ActorLogging {
     import ResponseBatchingActor._
@@ -65,6 +65,7 @@ object KsqlWebSocketActor {
     // Internal messages
     case class KsqlResponse(bodyPart: String)
     case object KsqlQueryDone
+    case object Stop
 
     def props(query: String, webSocketClient: ActorRef, ws: WSClient, cfg: Configuration): Props =
       Props(new PerQueryActor(query, webSocketClient, ws, cfg))
@@ -99,9 +100,8 @@ object KsqlWebSocketActor {
         pipeTo(self)
       context.become(awaitingServiceResponse)
     }
-    sendKsqlServiceRequest()
 
-    private lazy val awaitingServiceResponse: Receive = {
+    private val awaitingServiceResponse: Receive = {
       case resp: WSResponse =>
         resp.bodyAsSource.
           map(_.utf8String.trim).
@@ -112,6 +112,10 @@ object KsqlWebSocketActor {
           map { _ => KsqlQueryDone }.
           pipeTo(self)
         context.become(processingResponseBody("", done = false))
+
+      case Stop =>
+        log.debug("Received stop request.")
+        context.stop(self)
     }
 
     private def processingResponseBody(incompleteBody: String, done: Boolean): Receive = {
@@ -141,9 +145,15 @@ object KsqlWebSocketActor {
           log.info("Done processing KSQL service response body.")
           context.stop(self)
         }
+
+      case Stop =>
+        log.debug("Received stop request.")
+        context.stop(self)
     }
 
     override def receive: Receive = PartialFunction.empty
+
+    sendKsqlServiceRequest()
   }
 }
 class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configuration)
@@ -160,7 +170,9 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
       // Keep alive - No-op
       log.debug("Received keep-alive.")
 
-    case """{"cmd":"stop"}""" => // No query running. No-op
+    case """{"cmd":"stop"}""" =>
+      // No query running. No-op
+      log.debug("Received stop request with no active query. Ignoring.")
 
     case query: String =>
       context.become(
@@ -181,11 +193,11 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
       log.debug("Received keep-alive.")
 
     case """{"cmd":"stop"}""" =>
-      context.stop(queryActor) // TODO send message and perform clean stop
+      queryActor ! PerQueryActor.Stop
       context.become(awaitingQueryTermination(None, queryActor))
 
     case query: String =>
-      context.stop(queryActor) // TODO send message and perform clean stop
+      queryActor ! PerQueryActor.Stop
       context.become(awaitingQueryTermination(Some(query), queryActor))
 
     case Terminated(`queryActor`) =>
