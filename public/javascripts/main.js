@@ -9546,6 +9546,25 @@ var _connexity$ksql_web$Main$webSocketUrl = function (request) {
 			'://',
 			A2(_elm_lang$core$Basics_ops['++'], request.host, '/ksql')));
 };
+var _connexity$ksql_web$Main$maxDisplayedRows = 10000;
+var _connexity$ksql_web$Main$displayedDataRows = function (dataRows) {
+	return A2(_elm_lang$core$List$take, _connexity$ksql_web$Main$maxDisplayedRows, dataRows);
+};
+var _connexity$ksql_web$Main$unpauseQuery = F2(
+	function (bufferedDataRows, model) {
+		var result = model.result;
+		return _elm_lang$core$Native_Utils.update(
+			model,
+			{
+				result: _elm_lang$core$Native_Utils.update(
+					result,
+					{
+						dataRows: _connexity$ksql_web$Main$displayedDataRows(
+							A2(_elm_lang$core$Basics_ops['++'], result.dataRows, bufferedDataRows))
+					}),
+				maybeBufferedResult: _elm_lang$core$Maybe$Nothing
+			});
+	});
 var _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd = _elm_lang$core$Native_Platform.outgoingPort(
 	'codeMirrorFromTextAreaCmd',
 	function (v) {
@@ -9561,20 +9580,26 @@ var _connexity$ksql_web$Main$Request = F2(
 	function (a, b) {
 		return {secure: a, host: b};
 	});
-var _connexity$ksql_web$Main$Model = F7(
-	function (a, b, c, d, e, f, g) {
-		return {request: a, query: b, result: c, maybeBufferedResult: d, includesHeader: e, notifications: f, errorMessages: g};
+var _connexity$ksql_web$Main$QueryResult = F2(
+	function (a, b) {
+		return {headerRow: a, dataRows: b};
+	});
+var _connexity$ksql_web$Main$Model = F6(
+	function (a, b, c, d, e, f) {
+		return {request: a, query: b, result: c, maybeBufferedResult: d, notifications: e, errorMessages: f};
 	});
 var _connexity$ksql_web$Main$init = function (request) {
 	return {
 		ctor: '_Tuple2',
-		_0: A7(
+		_0: A6(
 			_connexity$ksql_web$Main$Model,
 			request,
 			'',
-			{ctor: '[]'},
+			A2(
+				_connexity$ksql_web$Main$QueryResult,
+				_elm_lang$core$Maybe$Nothing,
+				{ctor: '[]'}),
 			_elm_lang$core$Maybe$Nothing,
-			false,
 			{ctor: '[]'},
 			{ctor: '[]'}),
 		_1: _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd('source')
@@ -9814,28 +9839,32 @@ var _connexity$ksql_web$Main$view = function (model) {
 							_0: A2(
 								_elm_lang$html$Html$table,
 								{ctor: '[]'},
-								function () {
-									if (model.includesHeader) {
-										var _p2 = model.result;
-										if (_p2.ctor === '::') {
+								A2(
+									_elm_lang$core$Basics_ops['++'],
+									function () {
+										var _p2 = model.result.headerRow;
+										if (_p2.ctor === 'Just') {
 											return {
 												ctor: '::',
 												_0: A2(_connexity$ksql_web$Main$rowView, true, _p2._0),
-												_1: A2(
-													_elm_lang$core$List$map,
-													_connexity$ksql_web$Main$rowView(false),
-													_p2._1)
+												_1: {ctor: '[]'}
 											};
 										} else {
 											return {ctor: '[]'};
 										}
-									} else {
-										return A2(
-											_elm_lang$core$List$map,
-											_connexity$ksql_web$Main$rowView(false),
-											model.result);
-									}
-								}()),
+									}(),
+									A3(
+										_elm_lang$core$List$foldl,
+										F2(
+											function (row, rowViews) {
+												return {
+													ctor: '::',
+													_0: A2(_connexity$ksql_web$Main$rowView, false, row),
+													_1: rowViews
+												};
+											}),
+										{ctor: '[]'},
+										model.result.dataRows))),
 							_1: {
 								ctor: '::',
 								_0: A2(_connexity$ksql_web$Main$messagesView, _elm_lang$core$Maybe$Nothing, model.notifications),
@@ -9946,9 +9975,11 @@ var _connexity$ksql_web$Main$update = F2(
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
 						{
-							result: {ctor: '[]'},
+							result: A2(
+								_connexity$ksql_web$Main$QueryResult,
+								_elm_lang$core$Maybe$Nothing,
+								{ctor: '[]'}),
 							maybeBufferedResult: _elm_lang$core$Maybe$Nothing,
-							includesHeader: false,
 							notifications: {ctor: '[]'},
 							errorMessages: {ctor: '[]'}
 						}),
@@ -9966,12 +9997,7 @@ var _connexity$ksql_web$Main$update = F2(
 					_0: function () {
 						var _p4 = model.maybeBufferedResult;
 						if (_p4.ctor === 'Just') {
-							return _elm_lang$core$Native_Utils.update(
-								model,
-								{
-									result: A2(_elm_lang$core$Basics_ops['++'], model.result, _p4._0),
-									maybeBufferedResult: _elm_lang$core$Maybe$Nothing
-								});
+							return A2(_connexity$ksql_web$Main$unpauseQuery, _p4._0, model);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
@@ -9989,12 +10015,7 @@ var _connexity$ksql_web$Main$update = F2(
 					_0: function () {
 						var _p5 = model.maybeBufferedResult;
 						if (_p5.ctor === 'Just') {
-							return _elm_lang$core$Native_Utils.update(
-								model,
-								{
-									result: A2(_elm_lang$core$Basics_ops['++'], model.result, _p5._0),
-									maybeBufferedResult: _elm_lang$core$Maybe$Nothing
-								});
+							return A2(_connexity$ksql_web$Main$unpauseQuery, _p5._0, model);
 						} else {
 							return model;
 						}
@@ -10015,23 +10036,22 @@ var _connexity$ksql_web$Main$update = F2(
 							_p10);
 						if (_p6.ctor === 'Ok') {
 							return A3(
-								_elm_lang$core$List$foldl,
+								_elm_lang$core$List$foldr,
 								F2(
 									function (response, model) {
 										var _p7 = {ctor: '_Tuple2', _0: response, _1: model.maybeBufferedResult};
 										switch (_p7._0.ctor) {
 											case 'RowResponse':
 												if (_p7._1.ctor === 'Nothing') {
+													var result = model.result;
 													return _elm_lang$core$Native_Utils.update(
 														model,
 														{
-															result: A2(
-																_elm_lang$core$Basics_ops['++'],
-																model.result,
+															result: _elm_lang$core$Native_Utils.update(
+																result,
 																{
-																	ctor: '::',
-																	_0: _p7._0._0,
-																	_1: {ctor: '[]'}
+																	dataRows: _connexity$ksql_web$Main$displayedDataRows(
+																		{ctor: '::', _0: _p7._0._0, _1: model.result.dataRows})
 																})
 														});
 												} else {
@@ -10039,112 +10059,89 @@ var _connexity$ksql_web$Main$update = F2(
 														model,
 														{
 															maybeBufferedResult: _elm_lang$core$Maybe$Just(
-																A2(
-																	_elm_lang$core$Basics_ops['++'],
-																	_p7._1._0,
-																	{
-																		ctor: '::',
-																		_0: _p7._0._0,
-																		_1: {ctor: '[]'}
-																	}))
+																{ctor: '::', _0: _p7._0._0, _1: _p7._1._0})
 														});
 												}
 											case 'ShowStreamsResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														includesHeader: true,
-														result: {
-															ctor: '::',
-															_0: {
-																ctor: '::',
-																_0: _connexity$ksql_web$Main$StringColumn('name'),
-																_1: {
+														result: A2(
+															_connexity$ksql_web$Main$QueryResult,
+															_elm_lang$core$Maybe$Just(
+																{
 																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('topic'),
+																	_0: _connexity$ksql_web$Main$StringColumn('name'),
 																	_1: {
 																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('format'),
-																		_1: {ctor: '[]'}
+																		_0: _connexity$ksql_web$Main$StringColumn('topic'),
+																		_1: {
+																			ctor: '::',
+																			_0: _connexity$ksql_web$Main$StringColumn('format'),
+																			_1: {ctor: '[]'}
+																		}
 																	}
-																}
-															},
-															_1: _p7._0._0
-														}
+																}),
+															_p7._0._0)
 													});
 											case 'ShowTablesResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														includesHeader: true,
-														result: {
-															ctor: '::',
-															_0: {
-																ctor: '::',
-																_0: _connexity$ksql_web$Main$StringColumn('name'),
-																_1: {
+														result: A2(
+															_connexity$ksql_web$Main$QueryResult,
+															_elm_lang$core$Maybe$Just(
+																{
 																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('topic'),
+																	_0: _connexity$ksql_web$Main$StringColumn('name'),
 																	_1: {
 																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('format'),
-																		_1: {ctor: '[]'}
+																		_0: _connexity$ksql_web$Main$StringColumn('topic'),
+																		_1: {
+																			ctor: '::',
+																			_0: _connexity$ksql_web$Main$StringColumn('format'),
+																			_1: {ctor: '[]'}
+																		}
 																	}
-																}
-															},
-															_1: _p7._0._0
-														}
+																}),
+															_p7._0._0)
 													});
 											case 'DescribeResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														includesHeader: true,
-														result: {
-															ctor: '::',
-															_0: {
-																ctor: '::',
-																_0: _connexity$ksql_web$Main$StringColumn('name'),
-																_1: {
+														result: A2(
+															_connexity$ksql_web$Main$QueryResult,
+															_elm_lang$core$Maybe$Just(
+																{
 																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('type'),
-																	_1: {ctor: '[]'}
-																}
-															},
-															_1: _p7._0._0
-														}
+																	_0: _connexity$ksql_web$Main$StringColumn('name'),
+																	_1: {
+																		ctor: '::',
+																		_0: _connexity$ksql_web$Main$StringColumn('type'),
+																		_1: {ctor: '[]'}
+																	}
+																}),
+															_p7._0._0)
 													});
 											case 'NotificationResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														notifications: A2(
-															_elm_lang$core$Basics_ops['++'],
-															model.notifications,
-															{
-																ctor: '::',
-																_0: _p7._0._0,
-																_1: {ctor: '[]'}
-															})
+														notifications: {ctor: '::', _0: _p7._0._0, _1: model.notifications}
 													});
 											default:
-												var errorMessages = function () {
+												var newErrorMessages = function () {
 													var _p8 = _elm_lang$core$String$lines(_p7._0._0);
 													if (_p8.ctor === '::') {
-														return {
-															ctor: '::',
-															_0: _p8._0,
-															_1: {ctor: '[]'}
-														};
+														return {ctor: '::', _0: _p8._0, _1: model.errorMessages};
 													} else {
-														return {ctor: '[]'};
+														return model.errorMessages;
 													}
 												}();
 												return _elm_lang$core$Native_Utils.update(
 													model,
-													{
-														errorMessages: A2(_elm_lang$core$Basics_ops['++'], model.errorMessages, errorMessages)
-													});
+													{errorMessages: newErrorMessages});
 										}
 									}),
 								model,

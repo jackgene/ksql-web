@@ -12,6 +12,10 @@ import Time exposing (Time, second)
 import WebSocket
 
 
+maxDisplayedRows : Int
+maxDisplayedRows = 10000
+
+
 webSocketUrl : Request -> String
 webSocketUrl request =
   (if request.secure then "wss" else "ws") ++ "://" ++ request.host ++ "/ksql"
@@ -33,12 +37,15 @@ type Column
   | StringColumn String
   | NullColumn
 type alias Row = List Column
+type alias QueryResult =
+  { headerRow : Maybe Row
+  , dataRows : List Row
+  }
 type alias Model =
   { request : Request
   , query : String
-  , result : List Row
-  , maybeBufferedResult : Maybe (List Row)
-  , includesHeader : Bool
+  , result : QueryResult
+  , maybeBufferedDataRows : Maybe (List Row)
   , notifications : List String
   , errorMessages : List String
   }
@@ -46,7 +53,7 @@ type alias Model =
 
 init : Request -> (Model, Cmd Msg)
 init request =
-  ( Model request "" [] Nothing False [] []
+  ( Model request "" (QueryResult Nothing []) Nothing [] []
   , codeMirrorFromTextAreaCmd "source"
   )
 
@@ -190,6 +197,23 @@ responseDecoder =
       ]
 
 
+displayedDataRows : List Row -> List Row
+displayedDataRows dataRows =
+  List.take maxDisplayedRows dataRows
+
+
+unpauseQuery : List Row -> Model -> Model
+unpauseQuery bufferedDataRows model =
+  let
+    result : QueryResult
+    result = model.result
+  in
+    { model
+    | result = { result | dataRows = displayedDataRows (result.dataRows ++ bufferedDataRows) }
+    , maybeBufferedDataRows = Nothing
+    }
+
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
@@ -199,25 +223,24 @@ update msg model =
       )
     RunQuery ->
       ( { model
-        | result = []
-        , maybeBufferedResult = Nothing
-        , includesHeader = False
+        | result = QueryResult Nothing []
+        , maybeBufferedDataRows = Nothing
         , notifications = []
         , errorMessages = []
         }
       , WebSocket.send (webSocketUrl model.request) (Encode.encode 0 (ksqlCommandJson model.query))
       )
     PauseQuery ->
-      ( case model.maybeBufferedResult of
-          Just bufferedResult ->
-            { model | result = model.result ++ bufferedResult, maybeBufferedResult = Nothing }
+      ( case model.maybeBufferedDataRows of
+          Just bufferedDataRows ->
+            unpauseQuery bufferedDataRows model
           Nothing ->
-            { model | maybeBufferedResult = Just [] }
+            { model | maybeBufferedDataRows = Just [] }
       , Cmd.none )
     StopQuery ->
-      ( case model.maybeBufferedResult of
-          Just bufferedResult ->
-            { model | result = model.result ++ bufferedResult, maybeBufferedResult = Nothing }
+      ( case model.maybeBufferedDataRows of
+          Just bufferedDataRows ->
+            unpauseQuery bufferedDataRows model
           Nothing ->
             model
       , WebSocket.send (webSocketUrl model.request) """{"cmd":"stop"}"""
@@ -225,45 +248,55 @@ update msg model =
     QueryResponse responseJson ->
       ( case Decode.decodeString (Decode.list responseDecoder) responseJson of
           Ok responses ->
-            List.foldl
+            List.foldr
               ( \response -> \model ->
-                case (response, model.maybeBufferedResult) of
+                case (response, model.maybeBufferedDataRows) of
                   (RowResponse row, Nothing) ->
-                    { model | result = model.result ++ [ row ] }
-                  (RowResponse row, Just bufferedResult) ->
-                    { model | maybeBufferedResult = Just (bufferedResult ++ [ row ]) }
+                    let
+                      result : QueryResult
+                      result = model.result
+                    in
+                      { model | result = { result | dataRows = displayedDataRows (row :: model.result.dataRows) } }
+                  (RowResponse row, Just bufferedDataRows) ->
+                    { model | maybeBufferedDataRows = Just (row :: bufferedDataRows) }
                   (ShowStreamsResponse streams, _) ->
                     { model
-                    | includesHeader = True
-                    , result = [ StringColumn "name", StringColumn "topic", StringColumn "format" ] :: streams
+                    | result
+                      = QueryResult
+                        ( Just [ StringColumn "name", StringColumn "topic", StringColumn "format" ])
+                        streams
                     }
                   (ShowTablesResponse tables, _) ->
                     { model
-                    | includesHeader = True
-                    , result = [ StringColumn "name", StringColumn "topic", StringColumn "format" ] :: tables
+                    | result
+                      = QueryResult
+                        ( Just [ StringColumn "name", StringColumn "topic", StringColumn "format" ])
+                        tables
                     }
                   (DescribeResponse metaRows, _) ->
                     { model
-                    | includesHeader = True
-                    , result = [ StringColumn "name", StringColumn "type" ] :: metaRows
+                    | result
+                      = QueryResult
+                        ( Just [ StringColumn "name", StringColumn "type" ])
+                        metaRows
                     }
                   (NotificationResponse msg, _) ->
-                    { model | notifications = model.notifications ++ [ msg ] }
+                    { model | notifications = msg :: model.notifications }
                   (ErrorMessageResponse msg, _) ->
                     let
-                      errorMessages : List String
-                      errorMessages =
+                      newErrorMessages : List String
+                      newErrorMessages =
                         case String.lines msg of
-                          errorMessage :: _ -> [ errorMessage ]
-                          [] -> []
+                          errorMessage :: _ -> errorMessage :: model.errorMessages
+                          [] -> model.errorMessages
                     in
-                      { model | errorMessages = model.errorMessages ++ errorMessages }
+                      { model | errorMessages = newErrorMessages }
               )
               model
               responses
           Err errorMsg ->
             { model | errorMessages = [ "Error parsing JSON:\n" ++ responseJson ] }
-      , case model.maybeBufferedResult of
+      , case model.maybeBufferedDataRows of
           Just _ -> Cmd.none
           Nothing -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
       )
@@ -337,14 +370,15 @@ view model =
     [ textarea [ id "source", autofocus True ] [ text model.query ] ]
   , div [ id "output" ]
     [ table []
-      ( if model.includesHeader then
-          case model.result of
-            headerRow :: dataRows ->
-              rowView True headerRow :: (List.map (rowView False) dataRows)
-            [] ->
-              []
-        else
-          List.map (rowView False) model.result
+      ( ( case model.result.headerRow of
+            Just row -> [ rowView True row ]
+            Nothing -> []
+        ) ++
+        ( List.foldl
+          (\row -> \rowViews -> (rowView False row) :: rowViews)
+          []
+          model.result.dataRows
+        )
       )
     , messagesView Nothing model.notifications
     , messagesView (Just "error") model.errorMessages
