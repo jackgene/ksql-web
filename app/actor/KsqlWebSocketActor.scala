@@ -35,6 +35,7 @@ object KsqlWebSocketActor {
 
     private val sending: Receive = {
       case response: String =>
+        log.debug("Sending response unbatched.")
         webSocketClient ! s"[${extractJsonArrayElems(response)}]"
         context.become(batching(List()))
         context.system.scheduler.scheduleOnce(BatchPeriod, self, SendBatch)
@@ -50,6 +51,7 @@ object KsqlWebSocketActor {
             context.become(sending)
 
           case nonEmptyResponses: List[String] =>
+            log.debug(s"Sending ${nonEmptyResponses.size} response(s) in a batch.")
             webSocketClient ! nonEmptyResponses.mkString("[", ",", "]")
             context.become(batching(List()))
             context.system.scheduler.scheduleOnce(BatchPeriod, self, SendBatch)
@@ -85,7 +87,7 @@ object KsqlWebSocketActor {
         stream().
         filter(_.status == 200).
         recoverWith {
-          case e: NoSuchElementException =>
+          case _: NoSuchElementException =>
             ws.url(s"${cfg.get[String]("ksql.service.base.url")}/ksql").
               withMethod("POST").
               withHttpHeaders(
@@ -123,7 +125,7 @@ object KsqlWebSocketActor {
               processingResponseBody("", !line.startsWith("""{"row":{"columns":["""))
             )
 
-          case Failure(e: JsonParseException) =>
+          case Failure(_: JsonParseException) =>
             context.become(
               processingResponseBody(incompleteBody + bodyPart, done)
             )
