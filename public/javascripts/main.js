@@ -10043,7 +10043,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 											{
 												ctor: '::',
 												_0: _elm_lang$html$Html_Attributes$href('https://github.com/confluentinc/ksql/blob/master/docs/syntax-reference.md'),
-												_1: {ctor: '[]'}
+												_1: {
+													ctor: '::',
+													_0: _elm_lang$html$Html_Attributes$target('_blank'),
+													_1: {ctor: '[]'}
+												}
 											},
 											{
 												ctor: '::',

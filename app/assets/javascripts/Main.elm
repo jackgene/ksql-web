@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Dom
 import Dom.Scroll
 import Html exposing (..)
-import Html.Attributes exposing (autofocus, class, href, id)
+import Html.Attributes exposing (autofocus, class, href, id, target)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -490,7 +490,9 @@ view model =
       [ text "◼" ]
     , div []
       [ a
-        [ href "https://github.com/confluentinc/ksql/blob/master/docs/syntax-reference.md" ]
+        [ href "https://github.com/confluentinc/ksql/blob/master/docs/syntax-reference.md"
+        , target "_blank"
+        ]
         [ text "KSQL Syntax Reference" ]
       ]
     ]
