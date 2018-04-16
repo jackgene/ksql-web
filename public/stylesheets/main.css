@@ -37,6 +37,11 @@ pre {
   right: 0;
   height: 24px;
   padding: 4px;
+  font-size: 0.75em;
+}
+
+#control div {
+  float: right;
 }
 
 #input {

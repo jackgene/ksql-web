@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Dom
 import Dom.Scroll
 import Html exposing (..)
-import Html.Attributes exposing (autofocus, class, id)
+import Html.Attributes exposing (autofocus, class, href, id)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -488,6 +488,11 @@ view model =
     , button
       [ onClick StopQuery ]
       [ text "◼" ]
+    , div []
+      [ a
+        [ href "https://github.com/confluentinc/ksql/blob/master/docs/syntax-reference.md" ]
+        [ text "KSQL Syntax Reference" ]
+      ]
     ]
   , div [ id "input" ]
     [ textarea [ id "source", autofocus True ] [ text model.query ] ]
