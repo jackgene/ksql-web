@@ -121,7 +121,7 @@ object KsqlWebSocketActor {
         val msg = "Failed to connect to KSQL service, make sure the service is running, and ksql.service.base.url is set correctly."
         log.error(t, msg)
         // Mimics KSQL's error message JSON
-        webSocketClient ! s"""{"error":{"errorMessage":{"message":"${msg}: ${t.getMessage}"}}}"""
+        webSocketClient ! s"""{"error":{"errorMessage":{"message":"${msg} (${t.getMessage})"}}}"""
     }
 
     private def processingResponseBody(incompleteBody: String, done: Boolean): Receive = {
