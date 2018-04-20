@@ -370,36 +370,36 @@ update msg model =
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ])
-                        queries
+                        (Just [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ])
+                        (List.reverse queries)
                     }
                   (ShowStreamsResponse streams, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format" ])
-                        streams
+                        (Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format" ])
+                        (List.reverse streams)
                     }
                   (ShowTablesResponse tables, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format", StringColumn "Windowed" ])
-                        tables
+                        (Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format", StringColumn "Windowed" ])
+                        (List.reverse tables)
                     }
                   (ShowTopicsResponse topics, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ])
-                        topics
+                        (Just [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ])
+                        (List.reverse topics)
                     }
                   (DescribeResponse metaRows, _) ->
                     { model
                     | result
                       = QueryResult
-                        ( Just [ StringColumn "name", StringColumn "type" ])
-                        metaRows
+                        (Just [ StringColumn "name", StringColumn "type" ])
+                        (List.reverse metaRows)
                     }
                   (NotificationResponse msg, _) ->
                     { model | notifications = msg :: model.notifications }
@@ -490,7 +490,7 @@ view model =
       [ text "◼" ]
     , div []
       [ a
-        [ href "https://github.com/confluentinc/ksql/blob/master/docs/syntax-reference.md"
+        [ href "https://docs.confluent.io/current/ksql/docs/syntax-reference.html"
         , target "_blank"
         ]
         [ text "KSQL Syntax Reference" ]

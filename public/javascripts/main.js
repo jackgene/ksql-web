@@ -10411,7 +10411,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p17._0._0)
+															_elm_lang$core$List$reverse(_p17._0._0))
 													});
 											case 'ShowStreamsResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10433,7 +10433,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p17._0._0)
+															_elm_lang$core$List$reverse(_p17._0._0))
 													});
 											case 'ShowTablesResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10459,7 +10459,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p17._0._0)
+															_elm_lang$core$List$reverse(_p17._0._0))
 													});
 											case 'ShowTopicsResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10493,7 +10493,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		}
 																	}
 																}),
-															_p17._0._0)
+															_elm_lang$core$List$reverse(_p17._0._0))
 													});
 											case 'DescribeResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -10511,7 +10511,7 @@ var _connexity$ksql_web$Main$update = F2(
 																		_1: {ctor: '[]'}
 																	}
 																}),
-															_p17._0._0)
+															_elm_lang$core$List$reverse(_p17._0._0))
 													});
 											case 'NotificationResponse':
 												return _elm_lang$core$Native_Utils.update(
