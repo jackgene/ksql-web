@@ -5,7 +5,8 @@
 2. Clone this project.
 3. Update the `ksql.service.base.url` value in `conf/application.conf` if necessary.
 4. From the root of the project, run:
-```sbt -Dhttp.port=9000 start
+```
+sbt -Dhttp.port=9000 start
 ```
 
 ## Building
@@ -14,15 +15,18 @@ Like most web applications, KSQL Web consists of two components:
 * Client Side (written in Elm)
 
 Both components are built using SBT. To build the server side, run:
-```sbt compile
+```
+sbt compile
 ```
 
 To build the client side (optional), you'll first have to
 [install Elm](https://guide.elm-lang.org/install.html). Then run:
-```sbt elmMake
+```
+sbt elmMake
 ```
 
 Alternatively, you may build both components,
 and run the server in development mode by running:
-```sbt run
+```
+sbt run
 ```
