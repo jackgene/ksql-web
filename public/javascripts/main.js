@@ -9501,7 +9501,7 @@ var _connexity$ksql_web$Main$rowView = F2(
 				_connexity$ksql_web$Main$colView(isHeader),
 				row));
 	});
-var _connexity$ksql_web$Main$maxDisplayedRows = 10000;
+var _connexity$ksql_web$Main$maxDisplayedRows = 5000;
 var _connexity$ksql_web$Main$displayedDataRows = function (dataRows) {
 	return A2(_elm_lang$core$List$take, _connexity$ksql_web$Main$maxDisplayedRows, dataRows);
 };
@@ -10042,7 +10042,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 											_elm_lang$html$Html$a,
 											{
 												ctor: '::',
-												_0: _elm_lang$html$Html_Attributes$href('https://github.com/confluentinc/ksql/blob/master/docs/syntax-reference.md'),
+												_0: _elm_lang$html$Html_Attributes$href('https://docs.confluent.io/current/ksql/docs/syntax-reference.html'),
 												_1: {
 													ctor: '::',
 													_0: _elm_lang$html$Html_Attributes$target('_blank'),

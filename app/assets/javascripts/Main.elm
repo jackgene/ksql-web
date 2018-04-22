@@ -294,7 +294,7 @@ responseDecoder =
 
 
 maxDisplayedRows : Int
-maxDisplayedRows = 10000
+maxDisplayedRows = 5000
 
 
 displayedDataRows : List Row -> List Row
@@ -417,7 +417,7 @@ update msg model =
               responses
           Err errorMsg ->
             { model | errorMessages = [ "Error parsing JSON:\n" ++ responseJson ] }
-      , case model.maybeBufferedDataRows of
+      , case model.maybeBufferedDataRows of -- TODO make this based on new model state (i.e., after unpaause, scroll immediately)
           Just _ -> Cmd.none
           Nothing -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
       )
