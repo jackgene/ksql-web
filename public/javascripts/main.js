@@ -9776,8 +9776,8 @@ var _connexity$ksql_web$Main$queriesObjectDecoder = function () {
 				}
 			},
 			_connexity$ksql_web$Main$columnDecoder),
-		A2(_elm_lang$core$Json_Decode$field, 'queryString', _connexity$ksql_web$Main$columnDecoder),
-		A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', _connexity$ksql_web$Main$columnDecoder));
+		A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', _connexity$ksql_web$Main$columnDecoder),
+		A2(_elm_lang$core$Json_Decode$field, 'queryString', _connexity$ksql_web$Main$columnDecoder));
 	return A2(
 		_elm_lang$core$Json_Decode$at,
 		{

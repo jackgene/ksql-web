@@ -137,8 +137,8 @@ queriesObjectDecoder =
       Decode.map3
         (\id -> \kafkaTopic -> \queryString -> [ id, kafkaTopic, queryString ])
         (Decode.at [ "id", "id" ] columnDecoder)
-        (Decode.field "queryString" columnDecoder)
         (Decode.field "kafkaTopic" columnDecoder)
+        (Decode.field "queryString" columnDecoder)
   in
     Decode.at [ "queries", "queries" ] (Decode.list entryDecoder)
 
