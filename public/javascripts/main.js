@@ -10338,217 +10338,218 @@ var _connexity$ksql_web$Main$update = F2(
 				};
 			case 'QueryResponse':
 				var _p20 = _p12._0;
-				return {
-					ctor: '_Tuple2',
-					_0: function () {
-						var _p16 = A2(
-							_elm_lang$core$Json_Decode$decodeString,
-							_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-							_p20);
-						if (_p16.ctor === 'Ok') {
-							return A3(
-								_elm_lang$core$List$foldr,
-								F2(
-									function (response, model) {
-										var _p17 = {ctor: '_Tuple2', _0: response, _1: model.maybeBufferedDataRows};
-										switch (_p17._0.ctor) {
-											case 'RowResponse':
-												if (_p17._1.ctor === 'Nothing') {
-													var result = model.result;
-													return _elm_lang$core$Native_Utils.update(
-														model,
-														{
-															result: _elm_lang$core$Native_Utils.update(
-																result,
-																{
-																	dataRows: _connexity$ksql_web$Main$displayedDataRows(
-																		{ctor: '::', _0: _p17._0._0, _1: model.result.dataRows})
-																})
-														});
-												} else {
-													return _elm_lang$core$Native_Utils.update(
-														model,
-														{
-															maybeBufferedDataRows: _elm_lang$core$Maybe$Just(
-																{ctor: '::', _0: _p17._0._0, _1: _p17._1._0})
-														});
-												}
-											case 'ShowPropertiesResponse':
+				var updatedModel = function () {
+					var _p16 = A2(
+						_elm_lang$core$Json_Decode$decodeString,
+						_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
+						_p20);
+					if (_p16.ctor === 'Ok') {
+						return A3(
+							_elm_lang$core$List$foldr,
+							F2(
+								function (response, model) {
+									var _p17 = {ctor: '_Tuple2', _0: response, _1: model.maybeBufferedDataRows};
+									switch (_p17._0.ctor) {
+										case 'RowResponse':
+											if (_p17._1.ctor === 'Nothing') {
+												var result = model.result;
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														result: A2(
-															_connexity$ksql_web$Main$QueryResult,
-															_elm_lang$core$Maybe$Just(
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Property'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Value'),
-																		_1: {ctor: '[]'}
-																	}
-																}),
-															_p17._0._0)
+														result: _elm_lang$core$Native_Utils.update(
+															result,
+															{
+																dataRows: _connexity$ksql_web$Main$displayedDataRows(
+																	{ctor: '::', _0: _p17._0._0, _1: model.result.dataRows})
+															})
 													});
-											case 'ShowQueriesResponse':
+											} else {
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														result: A2(
-															_connexity$ksql_web$Main$QueryResult,
-															_elm_lang$core$Maybe$Just(
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Query ID'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Query String'),
-																			_1: {ctor: '[]'}
-																		}
-																	}
-																}),
-															_elm_lang$core$List$reverse(_p17._0._0))
+														maybeBufferedDataRows: _elm_lang$core$Maybe$Just(
+															{ctor: '::', _0: _p17._0._0, _1: _p17._1._0})
 													});
-											case 'ShowStreamsResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: A2(
-															_connexity$ksql_web$Main$QueryResult,
-															_elm_lang$core$Maybe$Just(
-																{
+											}
+										case 'ShowPropertiesResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													result: A2(
+														_connexity$ksql_web$Main$QueryResult,
+														_elm_lang$core$Maybe$Just(
+															{
+																ctor: '::',
+																_0: _connexity$ksql_web$Main$StringColumn('Property'),
+																_1: {
 																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Format'),
-																			_1: {ctor: '[]'}
-																		}
-																	}
-																}),
-															_elm_lang$core$List$reverse(_p17._0._0))
-													});
-											case 'ShowTablesResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: A2(
-															_connexity$ksql_web$Main$QueryResult,
-															_elm_lang$core$Maybe$Just(
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Format'),
-																			_1: {
-																				ctor: '::',
-																				_0: _connexity$ksql_web$Main$StringColumn('Windowed'),
-																				_1: {ctor: '[]'}
-																			}
-																		}
-																	}
-																}),
-															_elm_lang$core$List$reverse(_p17._0._0))
-													});
-											case 'ShowTopicsResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: A2(
-															_connexity$ksql_web$Main$QueryResult,
-															_elm_lang$core$Maybe$Just(
-																{
+																	_0: _connexity$ksql_web$Main$StringColumn('Value'),
+																	_1: {ctor: '[]'}
+																}
+															}),
+														_p17._0._0)
+												});
+										case 'ShowQueriesResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													result: A2(
+														_connexity$ksql_web$Main$QueryResult,
+														_elm_lang$core$Maybe$Just(
+															{
+																ctor: '::',
+																_0: _connexity$ksql_web$Main$StringColumn('Query ID'),
+																_1: {
 																	ctor: '::',
 																	_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
 																	_1: {
 																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Registered'),
+																		_0: _connexity$ksql_web$Main$StringColumn('Query String'),
+																		_1: {ctor: '[]'}
+																	}
+																}
+															}),
+														_elm_lang$core$List$reverse(_p17._0._0))
+												});
+										case 'ShowStreamsResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													result: A2(
+														_connexity$ksql_web$Main$QueryResult,
+														_elm_lang$core$Maybe$Just(
+															{
+																ctor: '::',
+																_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
+																_1: {
+																	ctor: '::',
+																	_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+																	_1: {
+																		ctor: '::',
+																		_0: _connexity$ksql_web$Main$StringColumn('Format'),
+																		_1: {ctor: '[]'}
+																	}
+																}
+															}),
+														_elm_lang$core$List$reverse(_p17._0._0))
+												});
+										case 'ShowTablesResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													result: A2(
+														_connexity$ksql_web$Main$QueryResult,
+														_elm_lang$core$Maybe$Just(
+															{
+																ctor: '::',
+																_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
+																_1: {
+																	ctor: '::',
+																	_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+																	_1: {
+																		ctor: '::',
+																		_0: _connexity$ksql_web$Main$StringColumn('Format'),
 																		_1: {
 																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Partitions'),
+																			_0: _connexity$ksql_web$Main$StringColumn('Windowed'),
+																			_1: {ctor: '[]'}
+																		}
+																	}
+																}
+															}),
+														_elm_lang$core$List$reverse(_p17._0._0))
+												});
+										case 'ShowTopicsResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													result: A2(
+														_connexity$ksql_web$Main$QueryResult,
+														_elm_lang$core$Maybe$Just(
+															{
+																ctor: '::',
+																_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+																_1: {
+																	ctor: '::',
+																	_0: _connexity$ksql_web$Main$StringColumn('Registered'),
+																	_1: {
+																		ctor: '::',
+																		_0: _connexity$ksql_web$Main$StringColumn('Partitions'),
+																		_1: {
+																			ctor: '::',
+																			_0: _connexity$ksql_web$Main$StringColumn('Partition Replicas'),
 																			_1: {
 																				ctor: '::',
-																				_0: _connexity$ksql_web$Main$StringColumn('Partition Replicas'),
+																				_0: _connexity$ksql_web$Main$StringColumn('Consumers'),
 																				_1: {
 																					ctor: '::',
-																					_0: _connexity$ksql_web$Main$StringColumn('Consumers'),
-																					_1: {
-																						ctor: '::',
-																						_0: _connexity$ksql_web$Main$StringColumn('Consumer Groups'),
-																						_1: {ctor: '[]'}
-																					}
+																					_0: _connexity$ksql_web$Main$StringColumn('Consumer Groups'),
+																					_1: {ctor: '[]'}
 																				}
 																			}
 																		}
 																	}
-																}),
-															_elm_lang$core$List$reverse(_p17._0._0))
-													});
-											case 'DescribeResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: A2(
-															_connexity$ksql_web$Main$QueryResult,
-															_elm_lang$core$Maybe$Just(
-																{
+																}
+															}),
+														_elm_lang$core$List$reverse(_p17._0._0))
+												});
+										case 'DescribeResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													result: A2(
+														_connexity$ksql_web$Main$QueryResult,
+														_elm_lang$core$Maybe$Just(
+															{
+																ctor: '::',
+																_0: _connexity$ksql_web$Main$StringColumn('name'),
+																_1: {
 																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('name'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('type'),
-																		_1: {ctor: '[]'}
-																	}
-																}),
-															_elm_lang$core$List$reverse(_p17._0._0))
-													});
-											case 'NotificationResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														notifications: {ctor: '::', _0: _p17._0._0, _1: model.notifications}
-													});
-											default:
-												var newErrorMessages = function () {
-													var _p18 = _elm_lang$core$String$lines(_p17._0._0);
-													if (_p18.ctor === '::') {
-														return {ctor: '::', _0: _p18._0, _1: model.errorMessages};
-													} else {
-														return model.errorMessages;
-													}
-												}();
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{errorMessages: newErrorMessages});
-										}
-									}),
-								model,
-								_p16._0);
-						} else {
-							return _elm_lang$core$Native_Utils.update(
-								model,
-								{
-									errorMessages: {
-										ctor: '::',
-										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p20),
-										_1: {ctor: '[]'}
+																	_0: _connexity$ksql_web$Main$StringColumn('type'),
+																	_1: {ctor: '[]'}
+																}
+															}),
+														_elm_lang$core$List$reverse(_p17._0._0))
+												});
+										case 'NotificationResponse':
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{
+													notifications: {ctor: '::', _0: _p17._0._0, _1: model.notifications}
+												});
+										default:
+											var newErrorMessages = function () {
+												var _p18 = _elm_lang$core$String$lines(_p17._0._0);
+												if (_p18.ctor === '::') {
+													return {ctor: '::', _0: _p18._0, _1: model.errorMessages};
+												} else {
+													return model.errorMessages;
+												}
+											}();
+											return _elm_lang$core$Native_Utils.update(
+												model,
+												{errorMessages: newErrorMessages});
 									}
-								});
-						}
-					}(),
+								}),
+							model,
+							_p16._0);
+					} else {
+						return _elm_lang$core$Native_Utils.update(
+							model,
+							{
+								errorMessages: {
+									ctor: '::',
+									_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p20),
+									_1: {ctor: '[]'}
+								}
+							});
+					}
+				}();
+				return {
+					ctor: '_Tuple2',
+					_0: updatedModel,
 					_1: function () {
-						var _p19 = model.maybeBufferedDataRows;
+						var _p19 = updatedModel.maybeBufferedDataRows;
 						if (_p19.ctor === 'Just') {
 							return _elm_lang$core$Platform_Cmd$none;
 						} else {

@@ -346,7 +346,9 @@ update msg model =
       , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
     QueryResponse responseJson ->
-      ( case Decode.decodeString (Decode.list responseDecoder) responseJson of
+      let
+        updatedModel : Model
+        updatedModel = case Decode.decodeString (Decode.list responseDecoder) responseJson of
           Ok responses ->
             List.foldr
               ( \response -> \model ->
@@ -417,10 +419,12 @@ update msg model =
               responses
           Err errorMsg ->
             { model | errorMessages = [ "Error parsing JSON:\n" ++ responseJson ] }
-      , case model.maybeBufferedDataRows of -- TODO make this based on new model state (i.e., after unpaause, scroll immediately)
-          Just _ -> Cmd.none
-          Nothing -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
-      )
+      in
+        ( updatedModel
+        , case updatedModel.maybeBufferedDataRows of
+            Just _ -> Cmd.none
+            Nothing -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+        )
     SendWebSocketKeepAlive _ ->
       ( model
       , WebSocket.send (webSocketUrl model.flags) "{}"
