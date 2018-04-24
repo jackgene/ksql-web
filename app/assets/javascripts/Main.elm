@@ -7,6 +7,7 @@ import Html.Attributes exposing (autofocus, class, href, id, target)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Stream exposing (Stream, (:::))
 import Task
 import Time exposing (Time, second)
 import WebSocket
@@ -36,17 +37,23 @@ type Column
 type alias Row = List Column
 
 
-type alias QueryResult =
-  { headerRow : Maybe Row
+type alias Table =
+  { headerRow : Row
   , dataRows : List Row
   }
+
+
+type QueryResult
+  = StreamingTabularResult (Stream Row)
+--  | StreamingTextualResult Stream String
+  | TabularResult Row (List Row)
+--  | DescribeExtendedResult String Table String
 
 
 type alias Model =
   { flags : Flags
   , query : String
-  , result : QueryResult
-  , maybeBufferedDataRows : Maybe (List Row)
+  , result : Maybe QueryResult
   , notifications : List String
   , errorMessages : List String
   }
@@ -59,7 +66,7 @@ webSocketUrl flag =
 
 init : Flags -> (Model, Cmd Msg)
 init flags =
-  ( Model flags "" (QueryResult Nothing []) Nothing [] []
+  ( Model flags "" Nothing [] []
   , Cmd.batch
     [ codeMirrorDocSetValueCmd flags.initialQuery
     , codeMirrorFromTextAreaCmd "source"
@@ -297,23 +304,6 @@ maxDisplayedRows : Int
 maxDisplayedRows = 5000
 
 
-displayedDataRows : List Row -> List Row
-displayedDataRows dataRows =
-  List.take maxDisplayedRows dataRows
-
-
-unpauseQuery : List Row -> Model -> Model
-unpauseQuery bufferedDataRows model =
-  let
-    result : QueryResult
-    result = model.result
-  in
-    { model
-    | result = { result | dataRows = displayedDataRows (result.dataRows ++ bufferedDataRows) }
-    , maybeBufferedDataRows = Nothing
-    }
-
-
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
@@ -323,29 +313,22 @@ update msg model =
       )
     RunQuery ->
       ( { model
-        | result = QueryResult Nothing []
-        , maybeBufferedDataRows = Nothing
+        | result = Nothing
         , notifications = []
         , errorMessages = []
         }
       , WebSocket.send (webSocketUrl model.flags) (Encode.encode 0 (ksqlCommandJson model.query))
       )
     PauseQuery ->
-      case model.maybeBufferedDataRows of
-        Just bufferedDataRows ->
-          ( unpauseQuery bufferedDataRows model
+      case model.result of
+        Just (StreamingTabularResult rows) ->
+          ( { model | result = Just (StreamingTabularResult (Stream.togglePause rows)) }
           , Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
           )
-        Nothing ->
-          ( { model | maybeBufferedDataRows = Just [] }
-          , Cmd.none
-          )
+        _ ->
+          ( model, Cmd.none )
     StopQuery ->
-      ( case model.maybeBufferedDataRows of
-          Just bufferedDataRows ->
-            unpauseQuery bufferedDataRows model
-          Nothing ->
-            model
+      ( model
       , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
     QueryResponse responseJson ->
@@ -353,60 +336,43 @@ update msg model =
           Ok responses ->
             List.foldr
               ( \response -> \model ->
-                case (response, model.maybeBufferedDataRows) of
-                  (RowResponse row, Nothing) ->
+                case response of
+                  RowResponse row ->
                     let
-                      result : QueryResult
-                      result = model.result
+                      rows : Stream Row
+                      rows =
+                        case model.result of
+                          Just (StreamingTabularResult rows) -> rows
+                          _ -> Stream.empty maxDisplayedRows
                     in
-                      { model | result = { result | dataRows = displayedDataRows (row :: model.result.dataRows) } }
-                  (RowResponse row, Just bufferedDataRows) ->
-                    { model | maybeBufferedDataRows = Just (row :: bufferedDataRows) }
-                  (ShowPropertiesResponse properties, _) ->
+                      { model | result = Just (StreamingTabularResult (row ::: rows)) }
+                  ShowPropertiesResponse properties ->
                     { model
-                    | result
-                      = QueryResult
-                        ( Just [ StringColumn "Property", StringColumn "Value" ])
-                        properties
+                    | result = Just (TabularResult [ StringColumn "Property", StringColumn "Value" ] properties)
                     }
-                  (ShowQueriesResponse queries, _) ->
+                  ShowQueriesResponse queries ->
                     { model
-                    | result
-                      = QueryResult
-                        (Just [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ])
-                        (List.reverse queries)
+                    | result = Just (TabularResult [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ] (List.reverse queries))
                     }
-                  (ShowStreamsResponse streams, _) ->
+                  ShowStreamsResponse streams ->
                     { model
-                    | result
-                      = QueryResult
-                        (Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format" ])
-                        (List.reverse streams)
+                    | result = Just (TabularResult [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format" ] (List.reverse streams))
                     }
-                  (ShowTablesResponse tables, _) ->
+                  ShowTablesResponse tables ->
                     { model
-                    | result
-                      = QueryResult
-                        (Just [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format", StringColumn "Windowed" ])
-                        (List.reverse tables)
+                    | result = Just (TabularResult [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format", StringColumn "Windowed" ] (List.reverse tables))
                     }
-                  (ShowTopicsResponse topics, _) ->
+                  ShowTopicsResponse topics ->
                     { model
-                    | result
-                      = QueryResult
-                        (Just [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ])
-                        (List.reverse topics)
+                    | result = Just (TabularResult [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ] (List.reverse topics))
                     }
-                  (DescribeResponse metaRows, _) ->
+                  DescribeResponse metaRows ->
                     { model
-                    | result
-                      = QueryResult
-                        (Just [ StringColumn "name", StringColumn "type" ])
-                        (List.reverse metaRows)
+                    | result = Just (TabularResult [ StringColumn "name", StringColumn "type" ] (List.reverse metaRows))
                     }
-                  (NotificationResponse msg, _) ->
+                  NotificationResponse msg ->
                     { model | notifications = msg :: model.notifications }
-                  (ErrorMessageResponse msg, _) ->
+                  ErrorMessageResponse msg ->
                     let
                       newErrorMessages : List String
                       newErrorMessages =
@@ -420,9 +386,11 @@ update msg model =
               responses
           Err errorMsg ->
             { model | errorMessages = [ "Error parsing JSON:\n" ++ responseJson ] }
-      , case model.maybeBufferedDataRows of -- TODO make this based on new model state (i.e., after unpaause, scroll immediately)
-          Just _ -> Cmd.none
-          Nothing -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+      , case model.result of
+          Just (StreamingTabularResult rows) ->
+            if (Stream.isPaused rows) then Cmd.none
+            else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+          _ -> Cmd.none
       )
     SendWebSocketKeepAlive _ ->
       ( model
@@ -503,15 +471,22 @@ view model =
     [ textarea [ id "source", autofocus True ] [ text model.query ] ]
   , div [ id "output" ]
     [ table []
-      ( ( case model.result.headerRow of
-            Just row -> [ rowView True row ]
-            Nothing -> []
-        ) ++
-        ( List.foldl
-          (\row -> \rowViews -> (rowView False row) :: rowViews)
-          []
-          model.result.dataRows
-        )
+      ( case model.result of
+          Just (StreamingTabularResult rows) ->
+            ( List.foldl
+              (\row -> \rowViews -> (rowView False row) :: rowViews)
+              []
+              (Stream.items rows)
+            )
+          Just (TabularResult headerRow dataRows) ->
+            ( rowView True headerRow )
+            ::
+            ( List.foldl
+              (\row -> \rowViews -> (rowView False row) :: rowViews)
+              []
+              dataRows
+            )
+          Nothing -> []
       )
     , messagesView Nothing model.notifications
     , messagesView (Just "error") model.errorMessages
