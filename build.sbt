@@ -37,7 +37,9 @@ elmMake := {
     else "--debug"
   Seq(
     "bash", "-c",
-    "elm-make app/assets/javascripts/Main.elm " +
+    "elm-make " +
+    "app/assets/javascripts/Main.elm " +
+    "app/assets/javascripts/Stream.elm " +
     "--output public/javascripts/main.js " +
     s"--yes ${debugFlag} --warn"
   ).! match {

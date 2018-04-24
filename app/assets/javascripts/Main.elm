@@ -102,189 +102,186 @@ ksqlCommandJson query =
   Encode.object [ ("ksql", Encode.string query) ]
 
 
-columnDecoder : Decode.Decoder Column
-columnDecoder =
-  let
-    boolColumnDecoder : Decode.Decoder Column
-    boolColumnDecoder = Decode.map BoolColumn Decode.bool
-
-    intColumnDecoder : Decode.Decoder Column
-    intColumnDecoder = Decode.map IntColumn Decode.int
-
-    stringColumnDecoder : Decode.Decoder Column
-    stringColumnDecoder = Decode.map StringColumn Decode.string
-
-    nullColumnDecoder : Decode.Decoder Column
-    nullColumnDecoder = Decode.null NullColumn
-  in
-    Decode.oneOf [ boolColumnDecoder, intColumnDecoder, stringColumnDecoder, nullColumnDecoder ]
-
-
-rowObjectDecoder : Decode.Decoder Row
-rowObjectDecoder =
-  let
-    rowDecoder : Decode.Decoder Row
-    rowDecoder = Decode.list columnDecoder
-  in
-    Decode.at [ "row", "columns" ] rowDecoder
-
-
-propertiesObjectDecoder : Decode.Decoder (List Row)
-propertiesObjectDecoder =
-  Decode.map
-    (\kvPairs -> List.map (\(k, v) -> [ StringColumn k, v ]) kvPairs)
-    (Decode.at [ "properties", "properties" ] (Decode.keyValuePairs columnDecoder))
-
-
-queriesObjectDecoder : Decode.Decoder (List Row)
-queriesObjectDecoder =
-  let
-    entryDecoder : Decode.Decoder Row
-    entryDecoder =
-      Decode.map3
-        (\id -> \kafkaTopic -> \queryString -> [ id, kafkaTopic, queryString ])
-        (Decode.at [ "id", "id" ] columnDecoder)
-        (Decode.field "kafkaTopic" columnDecoder)
-        (Decode.field "queryString" columnDecoder)
-  in
-    Decode.at [ "queries", "queries" ] (Decode.list entryDecoder)
-
-
-streamsObjectDecoder : Decode.Decoder (List Row)
-streamsObjectDecoder =
-  let
-    entryDecoder : Decode.Decoder Row
-    entryDecoder =
-      Decode.map3
-        (\name -> \topic -> \format -> [ name, topic, format ])
-        (Decode.field "name" columnDecoder)
-        (Decode.field "topic" columnDecoder)
-        (Decode.field "format" columnDecoder)
-  in
-    Decode.at [ "streams", "streams" ] (Decode.list entryDecoder)
-
-
-tablesObjectDecoder : Decode.Decoder (List Row)
-tablesObjectDecoder =
-  let
-    entryDecoder : Decode.Decoder Row
-    entryDecoder =
-      Decode.map4
-        (\name -> \topic -> \format -> \windowed -> [ name, topic, format, windowed ])
-        (Decode.field "name" columnDecoder)
-        (Decode.field "topic" columnDecoder)
-        (Decode.field "format" columnDecoder)
-        (Decode.field "isWindowed" columnDecoder)
-  in
-    Decode.at [ "tables", "tables" ] (Decode.list entryDecoder)
-
-
-topicsObjectDecoder : Decode.Decoder (List Row)
-topicsObjectDecoder =
-  let
-    entryDecoder : Decode.Decoder Row
-    entryDecoder =
-      Decode.map6
-        (\name -> \registered -> \parts -> \partsReplica -> \consumers -> \consumerGroups ->
-          [ name, registered, parts, partsReplica, consumers, consumerGroups ]
-        )
-        (Decode.field "name" columnDecoder)
-        (Decode.field "registered" columnDecoder)
-        (Decode.field "partitionCount" columnDecoder)
-        (Decode.field "replicaInfo" columnDecoder)
-        (Decode.field "consumerCount" columnDecoder)
-        (Decode.field "consumerGroupCount" columnDecoder)
-  in
-    Decode.at [ "kafka_topics", "topics" ] (Decode.list entryDecoder)
-
-
-descriptionObjectDecoder : Decode.Decoder ((List Row), String)
-descriptionObjectDecoder =
-  let
-    entryDecoder : Decode.Decoder Row
-    entryDecoder =
-      Decode.map2
-        (\name -> \typename -> [ name, typename ])
-        (Decode.field "name" columnDecoder)
-        (Decode.field "type" columnDecoder)
-  in
-    Decode.map2
-      (\schema -> \executionPlan -> (schema, executionPlan))
-      (Decode.at [ "description", "schema" ] (Decode.list entryDecoder))
-      (Decode.at [ "description", "executionPlan" ] Decode.string)
-
-
-currentStatusObjectDecoder : Decode.Decoder (Bool, String)
-currentStatusObjectDecoder =
-  Decode.map2
-    (\status -> \message -> (status == "SUCCESS", message))
-    (Decode.at [ "currentStatus", "commandStatus", "status" ] Decode.string)
-    (Decode.at [ "currentStatus", "commandStatus", "message" ] Decode.string)
-
-
-notificationObjectDecoder : Decode.Decoder String
-notificationObjectDecoder =
-  Decode.at [ "errorMessage", "message" ] Decode.string
-
-
-errorMessageObjectDecoder : Decode.Decoder String
-errorMessageObjectDecoder =
-  Decode.at [ "error", "errorMessage", "message" ] Decode.string
-
 
 responseDecoder : Decode.Decoder Response
 responseDecoder =
   let
+    columnDecoder : Decode.Decoder Column
+    columnDecoder =
+      let
+        boolColumnDecoder : Decode.Decoder Column
+        boolColumnDecoder = Decode.map BoolColumn Decode.bool
+
+        intColumnDecoder : Decode.Decoder Column
+        intColumnDecoder = Decode.map IntColumn Decode.int
+
+        stringColumnDecoder : Decode.Decoder Column
+        stringColumnDecoder = Decode.map StringColumn Decode.string
+
+        nullColumnDecoder : Decode.Decoder Column
+        nullColumnDecoder = Decode.null NullColumn
+      in
+        Decode.oneOf [ boolColumnDecoder, intColumnDecoder, stringColumnDecoder, nullColumnDecoder ]
+
+
     rowRespDecoder : Decode.Decoder Response
     rowRespDecoder =
-      Decode.map RowResponse rowObjectDecoder
+      let
+        rowObjectDecoder : Decode.Decoder Row
+        rowObjectDecoder =
+          let
+            rowDecoder : Decode.Decoder Row
+            rowDecoder = Decode.list columnDecoder
+          in Decode.at [ "row", "columns" ] rowDecoder
+      in Decode.map RowResponse rowObjectDecoder
+
 
     propertiesRespDecoder : Decode.Decoder Response
     propertiesRespDecoder =
-      Decode.map ShowPropertiesResponse propertiesObjectDecoder
+      let
+        propertiesObjectDecoder : Decode.Decoder (List Row)
+        propertiesObjectDecoder =
+          Decode.map
+            (\kvPairs -> List.map (\(k, v) -> [ StringColumn k, v ]) kvPairs)
+            (Decode.at [ "properties", "properties" ] (Decode.keyValuePairs columnDecoder))
+      in Decode.map ShowPropertiesResponse propertiesObjectDecoder
+
 
     queriesRespDecoder : Decode.Decoder Response
     queriesRespDecoder =
-      Decode.map ShowQueriesResponse queriesObjectDecoder
+      let
+        queriesObjectDecoder : Decode.Decoder (List Row)
+        queriesObjectDecoder =
+          let
+            entryDecoder : Decode.Decoder Row
+            entryDecoder =
+              Decode.map3
+                (\id -> \kafkaTopic -> \queryString -> [ id, kafkaTopic, queryString ])
+                (Decode.at [ "id", "id" ] columnDecoder)
+                (Decode.field "kafkaTopic" columnDecoder)
+                (Decode.field "queryString" columnDecoder)
+          in Decode.at [ "queries", "queries" ] (Decode.list entryDecoder)
+      in Decode.map ShowQueriesResponse queriesObjectDecoder
+
 
     streamsRespDecoder : Decode.Decoder Response
     streamsRespDecoder =
-      Decode.map ShowStreamsResponse streamsObjectDecoder
+      let
+        streamsObjectDecoder : Decode.Decoder (List Row)
+        streamsObjectDecoder =
+          let
+            entryDecoder : Decode.Decoder Row
+            entryDecoder =
+              Decode.map3
+                (\name -> \topic -> \format -> [ name, topic, format ])
+                (Decode.field "name" columnDecoder)
+                (Decode.field "topic" columnDecoder)
+                (Decode.field "format" columnDecoder)
+          in Decode.at [ "streams", "streams" ] (Decode.list entryDecoder)
+      in Decode.map ShowStreamsResponse streamsObjectDecoder
+
 
     tablesRespDecoder : Decode.Decoder Response
     tablesRespDecoder =
-      Decode.map ShowTablesResponse tablesObjectDecoder
+      let
+        tablesObjectDecoder : Decode.Decoder (List Row)
+        tablesObjectDecoder =
+          let
+            entryDecoder : Decode.Decoder Row
+            entryDecoder =
+              Decode.map4
+                (\name -> \topic -> \format -> \windowed -> [ name, topic, format, windowed ])
+                (Decode.field "name" columnDecoder)
+                (Decode.field "topic" columnDecoder)
+                (Decode.field "format" columnDecoder)
+                (Decode.field "isWindowed" columnDecoder)
+          in Decode.at [ "tables", "tables" ] (Decode.list entryDecoder)
+      in Decode.map ShowTablesResponse tablesObjectDecoder
+
 
     topicsRespDecoder : Decode.Decoder Response
     topicsRespDecoder =
-      Decode.map ShowTopicsResponse topicsObjectDecoder
+      let
+        topicsObjectDecoder : Decode.Decoder (List Row)
+        topicsObjectDecoder =
+          let
+            entryDecoder : Decode.Decoder Row
+            entryDecoder =
+              Decode.map6
+                (\name -> \registered -> \parts -> \partsReplica -> \consumers -> \consumerGroups ->
+                  [ name, registered, parts, partsReplica, consumers, consumerGroups ]
+                )
+                (Decode.field "name" columnDecoder)
+                (Decode.field "registered" columnDecoder)
+                (Decode.field "partitionCount" columnDecoder)
+                (Decode.field "replicaInfo" columnDecoder)
+                (Decode.field "consumerCount" columnDecoder)
+                (Decode.field "consumerGroupCount" columnDecoder)
+          in Decode.at [ "kafka_topics", "topics" ] (Decode.list entryDecoder)
+      in Decode.map ShowTopicsResponse topicsObjectDecoder
+
 
     descrRespDecoder : Decode.Decoder Response
     descrRespDecoder =
-      Decode.map
-        ( \(schema, executionPlan) ->
-          if not (List.isEmpty schema) then DescribeResponse schema
-          else if not (String.isEmpty executionPlan) then NotificationResponse executionPlan
-          else ErrorMessageResponse "Description response has neither schema nor executionPlan."
-        )
-        descriptionObjectDecoder
+      let
+        descriptionObjectDecoder : Decode.Decoder ((List Row), String)
+        descriptionObjectDecoder =
+          let
+            entryDecoder : Decode.Decoder Row
+            entryDecoder =
+              Decode.map2
+                (\name -> \typename -> [ name, typename ])
+                (Decode.field "name" columnDecoder)
+                (Decode.field "type" columnDecoder)
+          in
+            Decode.map2
+              (\schema -> \executionPlan -> (schema, executionPlan))
+              (Decode.at [ "description", "schema" ] (Decode.list entryDecoder))
+              (Decode.at [ "description", "executionPlan" ] Decode.string)
+      in
+        Decode.map
+          ( \(schema, executionPlan) ->
+            if not (List.isEmpty schema) then DescribeResponse schema
+            else if not (String.isEmpty executionPlan) then NotificationResponse executionPlan
+            else ErrorMessageResponse "Description response has neither schema nor executionPlan."
+          )
+          descriptionObjectDecoder
+
 
     curStatusDecoder : Decode.Decoder Response
     curStatusDecoder =
-      Decode.map
-        ( \(success, message) ->
-          if success then NotificationResponse message
-          else ErrorMessageResponse message
-        )
-        currentStatusObjectDecoder
+      let
+        currentStatusObjectDecoder : Decode.Decoder (Bool, String)
+        currentStatusObjectDecoder =
+          Decode.map2
+            (\status -> \message -> (status == "SUCCESS", message))
+            (Decode.at [ "currentStatus", "commandStatus", "status" ] Decode.string)
+            (Decode.at [ "currentStatus", "commandStatus", "message" ] Decode.string)
+      in
+        Decode.map
+          ( \(success, message) ->
+            if success then NotificationResponse message
+            else ErrorMessageResponse message
+          )
+          currentStatusObjectDecoder
+
 
     notificationRespDecoder : Decode.Decoder Response
     notificationRespDecoder =
-      Decode.map NotificationResponse notificationObjectDecoder
+      let
+        notificationObjectDecoder : Decode.Decoder String
+        notificationObjectDecoder =
+          Decode.at [ "errorMessage", "message" ] Decode.string
+      in Decode.map NotificationResponse notificationObjectDecoder
+
 
     errorMessageRespDecoder : Decode.Decoder Response
     errorMessageRespDecoder =
-      Decode.map ErrorMessageResponse errorMessageObjectDecoder
+      let
+        errorMessageObjectDecoder : Decode.Decoder String
+        errorMessageObjectDecoder =
+          Decode.at [ "error", "errorMessage", "message" ] Decode.string
+      in Decode.map ErrorMessageResponse errorMessageObjectDecoder
   in
     Decode.oneOf
       [ rowRespDecoder
@@ -431,19 +428,23 @@ rowView isHeader row =
   tr [] (List.map (colView isHeader) row)
 
 
-messagesView : Maybe String -> List String -> Html Msg
+messagesView : Maybe String -> List String -> List (Html Msg)
 messagesView maybeClassName messages =
-  div
-    ( class "messages" ::
-      ( case maybeClassName of
-          Just className -> [ class className ]
-          Nothing -> []
-      )
-    )
-    ( List.map
-      (\msg -> pre [] [ text msg ])
-      messages
-    )
+  case messages of
+    [] -> []
+    nonEmptyMsgs ->
+      [ div
+        ( class "messages" ::
+          ( case maybeClassName of
+              Just className -> [ class className ]
+              Nothing -> []
+          )
+        )
+        ( List.map
+          (\msg -> pre [] [ text msg ])
+          nonEmptyMsgs
+        )
+      ]
 
 
 view : Model -> Html Msg
@@ -470,27 +471,30 @@ view model =
   , div [ id "input" ]
     [ textarea [ id "source", autofocus True ] [ text model.query ] ]
   , div [ id "output" ]
-    [ table []
-      ( case model.result of
+    ( ( case model.result of
           Just (StreamingTabularResult rows) ->
-            ( List.foldl
-              (\row -> \rowViews -> (rowView False row) :: rowViews)
-              []
-              (Stream.items rows)
-            )
+            [ table []
+              ( List.foldl
+                (\row -> \rowViews -> (rowView False row) :: rowViews)
+                []
+                (Stream.items rows)
+              )
+            ]
           Just (TabularResult headerRow dataRows) ->
-            ( rowView True headerRow )
-            ::
-            ( List.foldl
-              (\row -> \rowViews -> (rowView False row) :: rowViews)
-              []
-              dataRows
-            )
+            [ table []
+              ( rowView True headerRow ::
+                ( List.foldl
+                  (\row -> \rowViews -> (rowView False row) :: rowViews)
+                  []
+                  dataRows
+                )
+              )
+            ]
           Nothing -> []
-      )
-    , messagesView Nothing model.notifications
-    , messagesView (Just "error") model.errorMessages
-    ]
+      ) ++
+      messagesView Nothing model.notifications ++
+      messagesView (Just "error") model.errorMessages
+    )
   ]
 
 
