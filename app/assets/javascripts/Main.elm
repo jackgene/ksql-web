@@ -455,7 +455,9 @@ update msg model =
       case model.result of
         Just (StreamingTabularResult rows) ->
           ( { model | result = Just (StreamingTabularResult (Stream.togglePause rows)) }
-          , Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+          , if Stream.isPaused rows then
+              Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+            else Cmd.none
           )
         _ ->
           ( model, Cmd.none )

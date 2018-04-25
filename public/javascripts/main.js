@@ -10969,6 +10969,7 @@ var _connexity$ksql_web$Main$update = F2(
 			case 'PauseQuery':
 				var _p23 = model.result;
 				if ((_p23.ctor === 'Just') && (_p23._0.ctor === 'StreamingTabularResult')) {
+					var _p24 = _p23._0._0;
 					return {
 						ctor: '_Tuple2',
 						_0: _elm_lang$core$Native_Utils.update(
@@ -10976,12 +10977,12 @@ var _connexity$ksql_web$Main$update = F2(
 							{
 								result: _elm_lang$core$Maybe$Just(
 									_connexity$ksql_web$Main$StreamingTabularResult(
-										_connexity$ksql_web$Stream$togglePause(_p23._0._0)))
+										_connexity$ksql_web$Stream$togglePause(_p24)))
 							}),
-						_1: A2(
+						_1: _connexity$ksql_web$Stream$isPaused(_p24) ? A2(
 							_elm_lang$core$Task$attempt,
 							_connexity$ksql_web$Main$ConsoleScrolled,
-							_elm_lang$dom$Dom_Scroll$toBottom('output'))
+							_elm_lang$dom$Dom_Scroll$toBottom('output')) : _elm_lang$core$Platform_Cmd$none
 					};
 				} else {
 					return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
@@ -10996,26 +10997,26 @@ var _connexity$ksql_web$Main$update = F2(
 						'{\"cmd\":\"stop\"}')
 				};
 			case 'QueryResponse':
-				var _p29 = _p21._0;
+				var _p30 = _p21._0;
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p24 = A2(
+						var _p25 = A2(
 							_elm_lang$core$Json_Decode$decodeString,
 							_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-							_p29);
-						if (_p24.ctor === 'Ok') {
+							_p30);
+						if (_p25.ctor === 'Ok') {
 							return A3(
 								_elm_lang$core$List$foldr,
 								F2(
 									function (response, model) {
-										var _p25 = response;
-										switch (_p25.ctor) {
+										var _p26 = response;
+										switch (_p26.ctor) {
 											case 'StreamedRowResponse':
 												var rows = function () {
-													var _p26 = model.result;
-													if ((_p26.ctor === 'Just') && (_p26._0.ctor === 'StreamingTabularResult')) {
-														return _p26._0._0;
+													var _p27 = model.result;
+													if ((_p27.ctor === 'Just') && (_p27._0.ctor === 'StreamingTabularResult')) {
+														return _p27._0._0;
 													} else {
 														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
 													}
@@ -11025,48 +11026,48 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														result: _elm_lang$core$Maybe$Just(
 															_connexity$ksql_web$Main$StreamingTabularResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p25._0, rows)))
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p26._0, rows)))
 													});
 											case 'TableResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p25._0))
+															_connexity$ksql_web$Main$TabularResult(_p26._0))
 													});
 											case 'NotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														notifications: {ctor: '::', _0: _p25._0, _1: model.notifications}
+														notifications: {ctor: '::', _0: _p26._0, _1: model.notifications}
 													});
 											case 'TableAndNotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p25._0)),
-														notifications: {ctor: '::', _0: _p25._1, _1: model.notifications}
+															_connexity$ksql_web$Main$TabularResult(_p26._0)),
+														notifications: {ctor: '::', _0: _p26._1, _1: model.notifications}
 													});
 											case 'DescribeExtendedResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$DescribeExtendedResult(_p25._0))
+															_connexity$ksql_web$Main$DescribeExtendedResult(_p26._0))
 													});
 											case 'ExplainResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$ExplainResult(_p25._0))
+															_connexity$ksql_web$Main$ExplainResult(_p26._0))
 													});
 											default:
 												var newErrorMessages = function () {
-													var _p27 = _elm_lang$core$String$lines(_p25._0);
-													if (_p27.ctor === '::') {
-														return {ctor: '::', _0: _p27._0, _1: model.errorMessages};
+													var _p28 = _elm_lang$core$String$lines(_p26._0);
+													if (_p28.ctor === '::') {
+														return {ctor: '::', _0: _p28._0, _1: model.errorMessages};
 													} else {
 														return model.errorMessages;
 													}
@@ -11077,23 +11078,23 @@ var _connexity$ksql_web$Main$update = F2(
 										}
 									}),
 								model,
-								_p24._0);
+								_p25._0);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
 								{
 									errorMessages: {
 										ctor: '::',
-										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p29),
+										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p30),
 										_1: {ctor: '[]'}
 									}
 								});
 						}
 					}(),
 					_1: function () {
-						var _p28 = model.result;
-						if ((_p28.ctor === 'Just') && (_p28._0.ctor === 'StreamingTabularResult')) {
-							return _connexity$ksql_web$Stream$isPaused(_p28._0._0) ? _elm_lang$core$Platform_Cmd$none : A2(
+						var _p29 = model.result;
+						if ((_p29.ctor === 'Just') && (_p29._0.ctor === 'StreamingTabularResult')) {
+							return _connexity$ksql_web$Stream$isPaused(_p29._0._0) ? _elm_lang$core$Platform_Cmd$none : A2(
 								_elm_lang$core$Task$attempt,
 								_connexity$ksql_web$Main$ConsoleScrolled,
 								_elm_lang$dom$Dom_Scroll$toBottom('output'));
