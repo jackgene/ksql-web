@@ -9539,6 +9539,59 @@ var _connexity$ksql_web$Main$messagesView = F2(
 			};
 		}
 	});
+var _connexity$ksql_web$Main$metadataRowView = F2(
+	function (key, value) {
+		return A2(
+			_elm_lang$html$Html$tr,
+			{ctor: '[]'},
+			{
+				ctor: '::',
+				_0: A2(
+					_elm_lang$html$Html$th,
+					{ctor: '[]'},
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html$text(key),
+						_1: {ctor: '[]'}
+					}),
+				_1: {
+					ctor: '::',
+					_0: A2(
+						_elm_lang$html$Html$td,
+						{ctor: '[]'},
+						{
+							ctor: '::',
+							_0: _elm_lang$html$Html$text(':'),
+							_1: {ctor: '[]'}
+						}),
+					_1: {
+						ctor: '::',
+						_0: A2(
+							_elm_lang$html$Html$td,
+							{ctor: '[]'},
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html$text(value),
+								_1: {ctor: '[]'}
+							}),
+						_1: {ctor: '[]'}
+					}
+				}
+			});
+	});
+var _connexity$ksql_web$Main$metadataTableView = function (metadata) {
+	return A2(
+		_elm_lang$html$Html$table,
+		{
+			ctor: '::',
+			_0: _elm_lang$html$Html_Attributes$class('metadata'),
+			_1: {ctor: '[]'}
+		},
+		A2(
+			_elm_lang$core$List$map,
+			_elm_lang$core$Basics$uncurry(_connexity$ksql_web$Main$metadataRowView),
+			metadata));
+};
 var _connexity$ksql_web$Main$colView = F2(
 	function (isHeader, col) {
 		return A2(
@@ -9586,6 +9639,24 @@ var _connexity$ksql_web$Main$rowView = F2(
 				_connexity$ksql_web$Main$colView(isHeader),
 				row));
 	});
+var _connexity$ksql_web$Main$rowKeyType = function (schema) {
+	return _elm_lang$core$List$head(
+		A2(
+			_elm_lang$core$List$filterMap,
+			function (row) {
+				var _p3 = row;
+				if ((((((_p3.ctor === '::') && (_p3._0.ctor === 'StringColumn')) && (_p3._0._0 === 'ROWKEY')) && (_p3._1.ctor === '::')) && (_p3._1._0.ctor === 'StringColumn')) && (_p3._1._1.ctor === '[]')) {
+					if (_p3._1._0._0 === 'VARCHAR(STRING)') {
+						return _elm_lang$core$Maybe$Just('STRING');
+					} else {
+						return _elm_lang$core$Maybe$Just(_p3._1._0._0);
+					}
+				} else {
+					return _elm_lang$core$Maybe$Nothing;
+				}
+			},
+			schema));
+};
 var _connexity$ksql_web$Main$maxDisplayedRows = 5000;
 var _connexity$ksql_web$Main$ksqlCommandJson = function (query) {
 	return _elm_lang$core$Json_Encode$object(
@@ -9632,6 +9703,22 @@ var _connexity$ksql_web$Main$Table = F2(
 	function (a, b) {
 		return {headerRow: a, dataRows: b};
 	});
+var _connexity$ksql_web$Main$Statistics = F2(
+	function (a, b) {
+		return {statistics: a, errorStats: b};
+	});
+var _connexity$ksql_web$Main$Topic = F3(
+	function (a, b, c) {
+		return {name: a, partitions: b, replication: c};
+	});
+var _connexity$ksql_web$Main$ExtendedSchema = F8(
+	function (a, b, c, d, e, f, g, h) {
+		return {schemaType: a, key: b, timestamp: c, serdes: d, kafkaOutputTopic: e, schema: f, writeQueries: g, statistics: h};
+	});
+var _connexity$ksql_web$Main$ExecutionPlan = F5(
+	function (a, b, c, d, e) {
+		return {statementText: a, statistics: b, kafkaOutputTopic: c, executionPlan: d, topology: e};
+	});
 var _connexity$ksql_web$Main$Model = F5(
 	function (a, b, c, d, e) {
 		return {flags: a, query: b, result: c, notifications: d, errorMessages: e};
@@ -9668,10 +9755,15 @@ var _connexity$ksql_web$Main$IntColumn = function (a) {
 var _connexity$ksql_web$Main$BoolColumn = function (a) {
 	return {ctor: 'BoolColumn', _0: a};
 };
-var _connexity$ksql_web$Main$TabularResult = F2(
-	function (a, b) {
-		return {ctor: 'TabularResult', _0: a, _1: b};
-	});
+var _connexity$ksql_web$Main$ExplainResult = function (a) {
+	return {ctor: 'ExplainResult', _0: a};
+};
+var _connexity$ksql_web$Main$DescribeExtendedResult = function (a) {
+	return {ctor: 'DescribeExtendedResult', _0: a};
+};
+var _connexity$ksql_web$Main$TabularResult = function (a) {
+	return {ctor: 'TabularResult', _0: a};
+};
 var _connexity$ksql_web$Main$StreamingTabularResult = function (a) {
 	return {ctor: 'StreamingTabularResult', _0: a};
 };
@@ -9813,38 +9905,20 @@ var _connexity$ksql_web$Main$view = function (model) {
 						A2(
 							_elm_lang$core$Basics_ops['++'],
 							function () {
-								var _p3 = model.result;
-								if (_p3.ctor === 'Just') {
-									if (_p3._0.ctor === 'StreamingTabularResult') {
-										return {
-											ctor: '::',
-											_0: A2(
-												_elm_lang$html$Html$table,
-												{ctor: '[]'},
-												A3(
-													_elm_lang$core$List$foldl,
-													F2(
-														function (row, rowViews) {
-															return {
-																ctor: '::',
-																_0: A2(_connexity$ksql_web$Main$rowView, false, row),
-																_1: rowViews
-															};
-														}),
-													{ctor: '[]'},
-													_connexity$ksql_web$Stream$items(_p3._0._0))),
-											_1: {ctor: '[]'}
-										};
-									} else {
-										return {
-											ctor: '::',
-											_0: A2(
-												_elm_lang$html$Html$table,
-												{ctor: '[]'},
-												{
-													ctor: '::',
-													_0: A2(_connexity$ksql_web$Main$rowView, true, _p3._0._0),
-													_1: A3(
+								var _p4 = model.result;
+								if (_p4.ctor === 'Just') {
+									switch (_p4._0.ctor) {
+										case 'StreamingTabularResult':
+											return {
+												ctor: '::',
+												_0: A2(
+													_elm_lang$html$Html$table,
+													{
+														ctor: '::',
+														_0: _elm_lang$html$Html_Attributes$class('data'),
+														_1: {ctor: '[]'}
+													},
+													A3(
 														_elm_lang$core$List$foldl,
 														F2(
 															function (row, rowViews) {
@@ -9855,10 +9929,326 @@ var _connexity$ksql_web$Main$view = function (model) {
 																};
 															}),
 														{ctor: '[]'},
-														_p3._0._1)
-												}),
-											_1: {ctor: '[]'}
-										};
+														_connexity$ksql_web$Stream$items(_p4._0._0))),
+												_1: {ctor: '[]'}
+											};
+										case 'TabularResult':
+											return {
+												ctor: '::',
+												_0: A2(
+													_elm_lang$html$Html$table,
+													{
+														ctor: '::',
+														_0: _elm_lang$html$Html_Attributes$class('data'),
+														_1: {ctor: '[]'}
+													},
+													{
+														ctor: '::',
+														_0: A2(_connexity$ksql_web$Main$rowView, true, _p4._0._0.headerRow),
+														_1: A3(
+															_elm_lang$core$List$foldl,
+															F2(
+																function (row, rowViews) {
+																	return {
+																		ctor: '::',
+																		_0: A2(_connexity$ksql_web$Main$rowView, false, row),
+																		_1: rowViews
+																	};
+																}),
+															{ctor: '[]'},
+															_p4._0._0.dataRows)
+													}),
+												_1: {ctor: '[]'}
+											};
+										case 'DescribeExtendedResult':
+											var _p5 = _p4._0._0;
+											return {
+												ctor: '::',
+												_0: _connexity$ksql_web$Main$metadataTableView(
+													{
+														ctor: '::',
+														_0: {ctor: '_Tuple2', _0: 'Type', _1: _p5.schemaType},
+														_1: {
+															ctor: '::',
+															_0: {ctor: '_Tuple2', _0: 'Key field', _1: _p5.key},
+															_1: {
+																ctor: '::',
+																_0: {
+																	ctor: '_Tuple2',
+																	_0: 'Timestamp field',
+																	_1: _elm_lang$core$String$isEmpty(_p5.timestamp) ? 'Not set - using <ROWTIME>' : _p5.timestamp
+																},
+																_1: {
+																	ctor: '::',
+																	_0: {
+																		ctor: '_Tuple2',
+																		_0: 'Key format',
+																		_1: A2(
+																			_elm_lang$core$Maybe$withDefault,
+																			'',
+																			_connexity$ksql_web$Main$rowKeyType(_p5.schema))
+																	},
+																	_1: {
+																		ctor: '::',
+																		_0: {ctor: '_Tuple2', _0: 'Value format', _1: _p5.serdes},
+																		_1: {
+																			ctor: '::',
+																			_0: {
+																				ctor: '_Tuple2',
+																				_0: 'Kafka output topic',
+																				_1: A2(
+																					_elm_lang$core$Basics_ops['++'],
+																					_p5.kafkaOutputTopic.name,
+																					A2(
+																						_elm_lang$core$Basics_ops['++'],
+																						' (partitions: ',
+																						A2(
+																							_elm_lang$core$Basics_ops['++'],
+																							_elm_lang$core$Basics$toString(_p5.kafkaOutputTopic.partitions),
+																							A2(
+																								_elm_lang$core$Basics_ops['++'],
+																								', replication: ',
+																								A2(
+																									_elm_lang$core$Basics_ops['++'],
+																									_elm_lang$core$Basics$toString(_p5.kafkaOutputTopic.replication),
+																									')')))))
+																			},
+																			_1: {ctor: '[]'}
+																		}
+																	}
+																}
+															}
+														}
+													}),
+												_1: {
+													ctor: '::',
+													_0: A2(
+														_elm_lang$html$Html$br,
+														{ctor: '[]'},
+														{ctor: '[]'}),
+													_1: {
+														ctor: '::',
+														_0: A2(
+															_elm_lang$html$Html$table,
+															{
+																ctor: '::',
+																_0: _elm_lang$html$Html_Attributes$class('data'),
+																_1: {ctor: '[]'}
+															},
+															{
+																ctor: '::',
+																_0: A2(
+																	_connexity$ksql_web$Main$rowView,
+																	true,
+																	{
+																		ctor: '::',
+																		_0: _connexity$ksql_web$Main$StringColumn('Field'),
+																		_1: {
+																			ctor: '::',
+																			_0: _connexity$ksql_web$Main$StringColumn('Type'),
+																			_1: {ctor: '[]'}
+																		}
+																	}),
+																_1: A2(
+																	_elm_lang$core$List$map,
+																	_connexity$ksql_web$Main$rowView(false),
+																	_p5.schema)
+															}),
+														_1: A2(
+															_elm_lang$core$Basics_ops['++'],
+															_elm_lang$core$List$isEmpty(_p5.writeQueries) ? {ctor: '[]'} : {
+																ctor: '::',
+																_0: A2(
+																	_elm_lang$html$Html$h3,
+																	{ctor: '[]'},
+																	{
+																		ctor: '::',
+																		_0: _elm_lang$html$Html$text(
+																			A2(_elm_lang$core$Basics_ops['++'], 'Queries that write into this ', _p5.schemaType)),
+																		_1: {ctor: '[]'}
+																	}),
+																_1: A2(_connexity$ksql_web$Main$messagesView, _elm_lang$core$Maybe$Nothing, _p5.writeQueries)
+															},
+															A2(
+																_elm_lang$core$Basics_ops['++'],
+																{
+																	ctor: '::',
+																	_0: A2(
+																		_elm_lang$html$Html$p,
+																		{ctor: '[]'},
+																		{
+																			ctor: '::',
+																			_0: _elm_lang$html$Html$text('For query topology and execution plan please run: EXPLAIN <QueryId>'),
+																			_1: {ctor: '[]'}
+																		}),
+																	_1: {ctor: '[]'}
+																},
+																A2(
+																	_elm_lang$core$Basics_ops['++'],
+																	{
+																		ctor: '::',
+																		_0: A2(
+																			_elm_lang$html$Html$h3,
+																			{ctor: '[]'},
+																			{
+																				ctor: '::',
+																				_0: _elm_lang$html$Html$text('Local runtime statistics'),
+																				_1: {ctor: '[]'}
+																			}),
+																		_1: {ctor: '[]'}
+																	},
+																	A2(
+																		_elm_lang$core$Basics_ops['++'],
+																		A2(
+																			_connexity$ksql_web$Main$messagesView,
+																			_elm_lang$core$Maybe$Nothing,
+																			{
+																				ctor: '::',
+																				_0: _p5.statistics.statistics,
+																				_1: {ctor: '[]'}
+																			}),
+																		A2(
+																			_elm_lang$core$Basics_ops['++'],
+																			A2(
+																				_connexity$ksql_web$Main$messagesView,
+																				_elm_lang$core$Maybe$Nothing,
+																				{
+																					ctor: '::',
+																					_0: _p5.statistics.errorStats,
+																					_1: {ctor: '[]'}
+																				}),
+																			{
+																				ctor: '::',
+																				_0: A2(
+																					_elm_lang$html$Html$p,
+																					{ctor: '[]'},
+																					{
+																						ctor: '::',
+																						_0: _elm_lang$html$Html$text(
+																							A2(
+																								_elm_lang$core$Basics_ops['++'],
+																								'(Statistics of the local KSQL server interaction with the Kafka topic ',
+																								A2(_elm_lang$core$Basics_ops['++'], _p5.kafkaOutputTopic.name, ')'))),
+																						_1: {ctor: '[]'}
+																					}),
+																				_1: {ctor: '[]'}
+																			})))))
+													}
+												}
+											};
+										default:
+											var _p6 = _p4._0._0;
+											return {
+												ctor: '::',
+												_0: _connexity$ksql_web$Main$metadataTableView(
+													{
+														ctor: '::',
+														_0: {ctor: '_Tuple2', _0: 'Type', _1: 'QUERY'},
+														_1: _elm_lang$core$String$isEmpty(_p6.statementText) ? {ctor: '[]'} : {
+															ctor: '::',
+															_0: {ctor: '_Tuple2', _0: 'SQL', _1: _p6.statementText},
+															_1: {ctor: '[]'}
+														}
+													}),
+												_1: A2(
+													_elm_lang$core$Basics_ops['++'],
+													{
+														ctor: '::',
+														_0: A2(
+															_elm_lang$html$Html$h3,
+															{ctor: '[]'},
+															{
+																ctor: '::',
+																_0: _elm_lang$html$Html$text('Local runtime statistics'),
+																_1: {ctor: '[]'}
+															}),
+														_1: {ctor: '[]'}
+													},
+													A2(
+														_elm_lang$core$Basics_ops['++'],
+														A2(
+															_connexity$ksql_web$Main$messagesView,
+															_elm_lang$core$Maybe$Nothing,
+															{
+																ctor: '::',
+																_0: _p6.statistics.statistics,
+																_1: {ctor: '[]'}
+															}),
+														A2(
+															_elm_lang$core$Basics_ops['++'],
+															A2(
+																_connexity$ksql_web$Main$messagesView,
+																_elm_lang$core$Maybe$Nothing,
+																{
+																	ctor: '::',
+																	_0: _p6.statistics.errorStats,
+																	_1: {ctor: '[]'}
+																}),
+															A2(
+																_elm_lang$core$Basics_ops['++'],
+																{
+																	ctor: '::',
+																	_0: A2(
+																		_elm_lang$html$Html$p,
+																		{ctor: '[]'},
+																		{
+																			ctor: '::',
+																			_0: _elm_lang$html$Html$text(
+																				A2(
+																					_elm_lang$core$Basics_ops['++'],
+																					'(Statistics of the local KSQL server interaction with the Kafka topic ',
+																					A2(_elm_lang$core$Basics_ops['++'], _p6.kafkaOutputTopic.name, ')'))),
+																			_1: {ctor: '[]'}
+																		}),
+																	_1: {ctor: '[]'}
+																},
+																A2(
+																	_elm_lang$core$Basics_ops['++'],
+																	{
+																		ctor: '::',
+																		_0: A2(
+																			_elm_lang$html$Html$h3,
+																			{ctor: '[]'},
+																			{
+																				ctor: '::',
+																				_0: _elm_lang$html$Html$text('Execution plan'),
+																				_1: {ctor: '[]'}
+																			}),
+																		_1: {ctor: '[]'}
+																	},
+																	A2(
+																		_elm_lang$core$Basics_ops['++'],
+																		A2(
+																			_connexity$ksql_web$Main$messagesView,
+																			_elm_lang$core$Maybe$Nothing,
+																			{
+																				ctor: '::',
+																				_0: _p6.executionPlan,
+																				_1: {ctor: '[]'}
+																			}),
+																		A2(
+																			_elm_lang$core$Basics_ops['++'],
+																			{
+																				ctor: '::',
+																				_0: A2(
+																					_elm_lang$html$Html$h3,
+																					{ctor: '[]'},
+																					{
+																						ctor: '::',
+																						_0: _elm_lang$html$Html$text('Processing topology'),
+																						_1: {ctor: '[]'}
+																					}),
+																				_1: {ctor: '[]'}
+																			},
+																			A2(
+																				_connexity$ksql_web$Main$messagesView,
+																				_elm_lang$core$Maybe$Nothing,
+																				{
+																					ctor: '::',
+																					_0: _p6.topology,
+																					_1: {ctor: '[]'}
+																				}))))))))
+											};
 									}
 								} else {
 									return {ctor: '[]'};
@@ -9901,29 +10291,24 @@ var _connexity$ksql_web$Main$subscriptions = function (model) {
 var _connexity$ksql_web$Main$ErrorMessageResponse = function (a) {
 	return {ctor: 'ErrorMessageResponse', _0: a};
 };
-var _connexity$ksql_web$Main$NotificationResponse = function (a) {
-	return {ctor: 'NotificationResponse', _0: a};
+var _connexity$ksql_web$Main$TableAndNotificationMessageResponse = F2(
+	function (a, b) {
+		return {ctor: 'TableAndNotificationMessageResponse', _0: a, _1: b};
+	});
+var _connexity$ksql_web$Main$NotificationMessageResponse = function (a) {
+	return {ctor: 'NotificationMessageResponse', _0: a};
 };
-var _connexity$ksql_web$Main$DescribeResponse = function (a) {
-	return {ctor: 'DescribeResponse', _0: a};
+var _connexity$ksql_web$Main$ExplainResponse = function (a) {
+	return {ctor: 'ExplainResponse', _0: a};
 };
-var _connexity$ksql_web$Main$ShowTopicsResponse = function (a) {
-	return {ctor: 'ShowTopicsResponse', _0: a};
+var _connexity$ksql_web$Main$DescribeExtendedResponse = function (a) {
+	return {ctor: 'DescribeExtendedResponse', _0: a};
 };
-var _connexity$ksql_web$Main$ShowTablesResponse = function (a) {
-	return {ctor: 'ShowTablesResponse', _0: a};
+var _connexity$ksql_web$Main$TableResponse = function (a) {
+	return {ctor: 'TableResponse', _0: a};
 };
-var _connexity$ksql_web$Main$ShowStreamsResponse = function (a) {
-	return {ctor: 'ShowStreamsResponse', _0: a};
-};
-var _connexity$ksql_web$Main$ShowQueriesResponse = function (a) {
-	return {ctor: 'ShowQueriesResponse', _0: a};
-};
-var _connexity$ksql_web$Main$ShowPropertiesResponse = function (a) {
-	return {ctor: 'ShowPropertiesResponse', _0: a};
-};
-var _connexity$ksql_web$Main$RowResponse = function (a) {
-	return {ctor: 'RowResponse', _0: a};
+var _connexity$ksql_web$Main$StreamedRowResponse = function (a) {
+	return {ctor: 'StreamedRowResponse', _0: a};
 };
 var _connexity$ksql_web$Main$responseDecoder = function () {
 	var errorMessageRespDecoder = function () {
@@ -9958,7 +10343,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				}
 			},
 			_elm_lang$core$Json_Decode$string);
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$NotificationResponse, notificationObjectDecoder);
+		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$NotificationMessageResponse, notificationObjectDecoder);
 	}();
 	var curStatusDecoder = function () {
 		var currentStatusObjectDecoder = A3(
@@ -10005,13 +10390,21 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				_elm_lang$core$Json_Decode$string));
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p4) {
-				var _p5 = _p4;
-				var _p6 = _p5._1;
-				return _p5._0 ? _connexity$ksql_web$Main$NotificationResponse(_p6) : _connexity$ksql_web$Main$ErrorMessageResponse(_p6);
+			function (_p7) {
+				var _p8 = _p7;
+				var _p9 = _p8._1;
+				return _p8._0 ? _connexity$ksql_web$Main$NotificationMessageResponse(_p9) : _connexity$ksql_web$Main$ErrorMessageResponse(_p9);
 			},
 			currentStatusObjectDecoder);
 	}();
+	var makeTableResponse = F2(
+		function (headerRow, dataRows) {
+			return _connexity$ksql_web$Main$TableResponse(
+				A2(
+					_connexity$ksql_web$Main$Table,
+					headerRow,
+					_elm_lang$core$List$reverse(dataRows)));
+		});
 	var columnDecoder = function () {
 		var nullColumnDecoder = _elm_lang$core$Json_Decode$null(_connexity$ksql_web$Main$NullColumn);
 		var stringColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$StringColumn, _elm_lang$core$Json_Decode$string);
@@ -10037,22 +10430,19 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 			});
 	}();
 	var rowRespDecoder = function () {
-		var rowObjectDecoder = function () {
-			var rowDecoder = _elm_lang$core$Json_Decode$list(columnDecoder);
-			return A2(
-				_elm_lang$core$Json_Decode$at,
-				{
+		var rowObjectDecoder = A2(
+			_elm_lang$core$Json_Decode$at,
+			{
+				ctor: '::',
+				_0: 'row',
+				_1: {
 					ctor: '::',
-					_0: 'row',
-					_1: {
-						ctor: '::',
-						_0: 'columns',
-						_1: {ctor: '[]'}
-					}
-				},
-				rowDecoder);
-		}();
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$RowResponse, rowObjectDecoder);
+					_0: 'columns',
+					_1: {ctor: '[]'}
+				}
+			},
+			_elm_lang$core$Json_Decode$list(columnDecoder));
+		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$StreamedRowResponse, rowObjectDecoder);
 	}();
 	var propertiesRespDecoder = function () {
 		var propertiesObjectDecoder = A2(
@@ -10060,14 +10450,14 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 			function (kvPairs) {
 				return A2(
 					_elm_lang$core$List$map,
-					function (_p7) {
-						var _p8 = _p7;
+					function (_p10) {
+						var _p11 = _p10;
 						return {
 							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn(_p8._0),
+							_0: _connexity$ksql_web$Main$StringColumn(_p11._0),
 							_1: {
 								ctor: '::',
-								_0: _p8._1,
+								_0: _p11._1,
 								_1: {ctor: '[]'}
 							}
 						};
@@ -10086,7 +10476,24 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 					}
 				},
 				_elm_lang$core$Json_Decode$keyValuePairs(columnDecoder)));
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ShowPropertiesResponse, propertiesObjectDecoder);
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p12) {
+				return _connexity$ksql_web$Main$TableResponse(
+					A2(
+						_connexity$ksql_web$Main$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Main$StringColumn('Property'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Main$StringColumn('Value'),
+								_1: {ctor: '[]'}
+							}
+						},
+						_p12));
+			},
+			propertiesObjectDecoder);
 	}();
 	var queriesRespDecoder = function () {
 		var queriesObjectDecoder = function () {
@@ -10135,7 +10542,31 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				},
 				_elm_lang$core$Json_Decode$list(entryDecoder));
 		}();
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ShowQueriesResponse, queriesObjectDecoder);
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p13) {
+				return A3(
+					_elm_lang$core$Basics$flip,
+					_connexity$ksql_web$Main$TableAndNotificationMessageResponse,
+					'For detailed information on a Query run: EXPLAIN <Query ID>;',
+					A2(
+						_connexity$ksql_web$Main$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Main$StringColumn('Query ID'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Main$StringColumn('Query String'),
+									_1: {ctor: '[]'}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p13)));
+			},
+			queriesObjectDecoder);
 	}();
 	var streamsRespDecoder = function () {
 		var streamsObjectDecoder = function () {
@@ -10173,7 +10604,28 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				},
 				_elm_lang$core$Json_Decode$list(entryDecoder));
 		}();
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ShowStreamsResponse, streamsObjectDecoder);
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p14) {
+				return _connexity$ksql_web$Main$TableResponse(
+					A2(
+						_connexity$ksql_web$Main$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Main$StringColumn('Format'),
+									_1: {ctor: '[]'}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p14)));
+			},
+			streamsObjectDecoder);
 	}();
 	var tablesRespDecoder = function () {
 		var tablesObjectDecoder = function () {
@@ -10216,7 +10668,32 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				},
 				_elm_lang$core$Json_Decode$list(entryDecoder));
 		}();
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ShowTablesResponse, tablesObjectDecoder);
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p15) {
+				return _connexity$ksql_web$Main$TableResponse(
+					A2(
+						_connexity$ksql_web$Main$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Main$StringColumn('Format'),
+									_1: {
+										ctor: '::',
+										_0: _connexity$ksql_web$Main$StringColumn('Windowed'),
+										_1: {ctor: '[]'}
+									}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p15)));
+			},
+			tablesObjectDecoder);
 	}();
 	var topicsRespDecoder = function () {
 		var topicsObjectDecoder = function () {
@@ -10269,66 +10746,150 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				},
 				_elm_lang$core$Json_Decode$list(entryDecoder));
 		}();
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ShowTopicsResponse, topicsObjectDecoder);
-	}();
-	var descrRespDecoder = function () {
-		var descriptionObjectDecoder = function () {
-			var entryDecoder = A3(
-				_elm_lang$core$Json_Decode$map2,
-				F2(
-					function (name, typename) {
-						return {
-							ctor: '::',
-							_0: name,
-							_1: {
-								ctor: '::',
-								_0: typename,
-								_1: {ctor: '[]'}
-							}
-						};
-					}),
-				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'type', columnDecoder));
-			return A3(
-				_elm_lang$core$Json_Decode$map2,
-				F2(
-					function (schema, executionPlan) {
-						return {ctor: '_Tuple2', _0: schema, _1: executionPlan};
-					}),
-				A2(
-					_elm_lang$core$Json_Decode$at,
-					{
-						ctor: '::',
-						_0: 'description',
-						_1: {
-							ctor: '::',
-							_0: 'schema',
-							_1: {ctor: '[]'}
-						}
-					},
-					_elm_lang$core$Json_Decode$list(entryDecoder)),
-				A2(
-					_elm_lang$core$Json_Decode$at,
-					{
-						ctor: '::',
-						_0: 'description',
-						_1: {
-							ctor: '::',
-							_0: 'executionPlan',
-							_1: {ctor: '[]'}
-						}
-					},
-					_elm_lang$core$Json_Decode$string));
-		}();
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p9) {
-				var _p10 = _p9;
-				var _p12 = _p10._0;
-				var _p11 = _p10._1;
-				return (!_elm_lang$core$List$isEmpty(_p12)) ? _connexity$ksql_web$Main$DescribeResponse(_p12) : ((!_elm_lang$core$String$isEmpty(_p11)) ? _connexity$ksql_web$Main$NotificationResponse(_p11) : _connexity$ksql_web$Main$ErrorMessageResponse('Description response has neither schema nor executionPlan.'));
+			function (_p16) {
+				return _connexity$ksql_web$Main$TableResponse(
+					A2(
+						_connexity$ksql_web$Main$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Main$StringColumn('Registered'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Main$StringColumn('Partitions'),
+									_1: {
+										ctor: '::',
+										_0: _connexity$ksql_web$Main$StringColumn('Partition Replicas'),
+										_1: {
+											ctor: '::',
+											_0: _connexity$ksql_web$Main$StringColumn('Consumers'),
+											_1: {
+												ctor: '::',
+												_0: _connexity$ksql_web$Main$StringColumn('Consumer Groups'),
+												_1: {ctor: '[]'}
+											}
+										}
+									}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p16)));
 			},
-			descriptionObjectDecoder);
+			topicsObjectDecoder);
+	}();
+	var descrRespDecoder = function () {
+		var descrObjectTopicDecoder = A4(
+			_elm_lang$core$Json_Decode$map3,
+			_connexity$ksql_web$Main$Topic,
+			A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'partitions', _elm_lang$core$Json_Decode$int),
+			A2(_elm_lang$core$Json_Decode$field, 'replication', _elm_lang$core$Json_Decode$int));
+		var descrObjectStatsDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			_connexity$ksql_web$Main$Statistics,
+			A2(_elm_lang$core$Json_Decode$field, 'statistics', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'errorStats', _elm_lang$core$Json_Decode$string));
+		var descrObjectExplainDecoder = A6(
+			_elm_lang$core$Json_Decode$map5,
+			_connexity$ksql_web$Main$ExecutionPlan,
+			A2(_elm_lang$core$Json_Decode$field, 'statementText', _elm_lang$core$Json_Decode$string),
+			descrObjectStatsDecoder,
+			descrObjectTopicDecoder,
+			A2(_elm_lang$core$Json_Decode$field, 'executionPlan', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'topology', _elm_lang$core$Json_Decode$string));
+		var descrObjectTypeDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			_elm_lang$core$Basics$curry(_elm_lang$core$Basics$identity),
+			A2(_elm_lang$core$Json_Decode$field, 'type', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'extended', _elm_lang$core$Json_Decode$bool));
+		var entryDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			F2(
+				function (name, typename) {
+					return {
+						ctor: '::',
+						_0: name,
+						_1: {
+							ctor: '::',
+							_0: typename,
+							_1: {ctor: '[]'}
+						}
+					};
+				}),
+			A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
+			A2(_elm_lang$core$Json_Decode$field, 'type', columnDecoder));
+		var descrObjectBasicSchemaDecoder = A2(
+			_elm_lang$core$Json_Decode$field,
+			'schema',
+			_elm_lang$core$Json_Decode$list(entryDecoder));
+		var descrObjectExtendedSchemaDecoder = A9(
+			_elm_lang$core$Json_Decode$map8,
+			_connexity$ksql_web$Main$ExtendedSchema,
+			A2(_elm_lang$core$Json_Decode$field, 'type', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'key', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'timestamp', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'serdes', _elm_lang$core$Json_Decode$string),
+			descrObjectTopicDecoder,
+			A2(
+				_elm_lang$core$Json_Decode$field,
+				'schema',
+				_elm_lang$core$Json_Decode$list(entryDecoder)),
+			A2(
+				_elm_lang$core$Json_Decode$field,
+				'writeQueries',
+				_elm_lang$core$Json_Decode$list(_elm_lang$core$Json_Decode$string)),
+			descrObjectStatsDecoder);
+		return A2(
+			_elm_lang$core$Json_Decode$field,
+			'description',
+			A2(
+				_elm_lang$core$Json_Decode$andThen,
+				function (_p17) {
+					var _p18 = _p17;
+					var _p19 = {ctor: '_Tuple2', _0: _p18._0, _1: _p18._1};
+					_v8_0:
+					do {
+						if (_p19._1 === false) {
+							if (_p19._0 === 'QUERY') {
+								break _v8_0;
+							} else {
+								return A2(
+									_elm_lang$core$Json_Decode$map,
+									function (_p20) {
+										return A3(
+											_elm_lang$core$Basics$flip,
+											_connexity$ksql_web$Main$TableAndNotificationMessageResponse,
+											'For runtime statistics and query details run: DESCRIBE EXTENDED <Stream,Table>;',
+											A2(
+												_connexity$ksql_web$Main$Table,
+												{
+													ctor: '::',
+													_0: _connexity$ksql_web$Main$StringColumn('Field'),
+													_1: {
+														ctor: '::',
+														_0: _connexity$ksql_web$Main$StringColumn('Type'),
+														_1: {ctor: '[]'}
+													}
+												},
+												_elm_lang$core$List$reverse(_p20)));
+									},
+									descrObjectBasicSchemaDecoder);
+							}
+						} else {
+							if (_p19._0 === 'QUERY') {
+								break _v8_0;
+							} else {
+								return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$DescribeExtendedResponse, descrObjectExtendedSchemaDecoder);
+							}
+						}
+					} while(false);
+					return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ExplainResponse, descrObjectExplainDecoder);
+				},
+				descrObjectTypeDecoder));
 	}();
 	return _elm_lang$core$Json_Decode$oneOf(
 		{
@@ -10375,17 +10936,17 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 }();
 var _connexity$ksql_web$Main$update = F2(
 	function (msg, model) {
-		var _p13 = msg;
-		switch (_p13.ctor) {
+		var _p21 = msg;
+		switch (_p21.ctor) {
 			case 'ChangeQuery':
-				var _p14 = _p13._0;
+				var _p22 = _p21._0;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{query: _p14}),
+						{query: _p22}),
 					_1: _connexity$ksql_web$Main$localStorageSetItemCmd(
-						{ctor: '_Tuple2', _0: 'query', _1: _p14})
+						{ctor: '_Tuple2', _0: 'query', _1: _p22})
 				};
 			case 'RunQuery':
 				return {
@@ -10406,8 +10967,8 @@ var _connexity$ksql_web$Main$update = F2(
 							_connexity$ksql_web$Main$ksqlCommandJson(model.query)))
 				};
 			case 'PauseQuery':
-				var _p15 = model.result;
-				if ((_p15.ctor === 'Just') && (_p15._0.ctor === 'StreamingTabularResult')) {
+				var _p23 = model.result;
+				if ((_p23.ctor === 'Just') && (_p23._0.ctor === 'StreamingTabularResult')) {
 					return {
 						ctor: '_Tuple2',
 						_0: _elm_lang$core$Native_Utils.update(
@@ -10415,7 +10976,7 @@ var _connexity$ksql_web$Main$update = F2(
 							{
 								result: _elm_lang$core$Maybe$Just(
 									_connexity$ksql_web$Main$StreamingTabularResult(
-										_connexity$ksql_web$Stream$togglePause(_p15._0._0)))
+										_connexity$ksql_web$Stream$togglePause(_p23._0._0)))
 							}),
 						_1: A2(
 							_elm_lang$core$Task$attempt,
@@ -10435,26 +10996,26 @@ var _connexity$ksql_web$Main$update = F2(
 						'{\"cmd\":\"stop\"}')
 				};
 			case 'QueryResponse':
-				var _p21 = _p13._0;
+				var _p29 = _p21._0;
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p16 = A2(
+						var _p24 = A2(
 							_elm_lang$core$Json_Decode$decodeString,
 							_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-							_p21);
-						if (_p16.ctor === 'Ok') {
+							_p29);
+						if (_p24.ctor === 'Ok') {
 							return A3(
 								_elm_lang$core$List$foldr,
 								F2(
 									function (response, model) {
-										var _p17 = response;
-										switch (_p17.ctor) {
-											case 'RowResponse':
+										var _p25 = response;
+										switch (_p25.ctor) {
+											case 'StreamedRowResponse':
 												var rows = function () {
-													var _p18 = model.result;
-													if ((_p18.ctor === 'Just') && (_p18._0.ctor === 'StreamingTabularResult')) {
-														return _p18._0._0;
+													var _p26 = model.result;
+													if ((_p26.ctor === 'Just') && (_p26._0.ctor === 'StreamingTabularResult')) {
+														return _p26._0._0;
 													} else {
 														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
 													}
@@ -10464,159 +11025,48 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														result: _elm_lang$core$Maybe$Just(
 															_connexity$ksql_web$Main$StreamingTabularResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p17._0, rows)))
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p25._0, rows)))
 													});
-											case 'ShowPropertiesResponse':
+											case 'TableResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															A2(
-																_connexity$ksql_web$Main$TabularResult,
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Property'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Value'),
-																		_1: {ctor: '[]'}
-																	}
-																},
-																_p17._0))
+															_connexity$ksql_web$Main$TabularResult(_p25._0))
 													});
-											case 'ShowQueriesResponse':
+											case 'NotificationMessageResponse':
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														notifications: {ctor: '::', _0: _p25._0, _1: model.notifications}
+													});
+											case 'TableAndNotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															A2(
-																_connexity$ksql_web$Main$TabularResult,
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Query ID'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Query String'),
-																			_1: {ctor: '[]'}
-																		}
-																	}
-																},
-																_elm_lang$core$List$reverse(_p17._0)))
+															_connexity$ksql_web$Main$TabularResult(_p25._0)),
+														notifications: {ctor: '::', _0: _p25._1, _1: model.notifications}
 													});
-											case 'ShowStreamsResponse':
+											case 'DescribeExtendedResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															A2(
-																_connexity$ksql_web$Main$TabularResult,
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Format'),
-																			_1: {ctor: '[]'}
-																		}
-																	}
-																},
-																_elm_lang$core$List$reverse(_p17._0)))
+															_connexity$ksql_web$Main$DescribeExtendedResult(_p25._0))
 													});
-											case 'ShowTablesResponse':
+											case 'ExplainResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															A2(
-																_connexity$ksql_web$Main$TabularResult,
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Format'),
-																			_1: {
-																				ctor: '::',
-																				_0: _connexity$ksql_web$Main$StringColumn('Windowed'),
-																				_1: {ctor: '[]'}
-																			}
-																		}
-																	}
-																},
-																_elm_lang$core$List$reverse(_p17._0)))
-													});
-											case 'ShowTopicsResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: _elm_lang$core$Maybe$Just(
-															A2(
-																_connexity$ksql_web$Main$TabularResult,
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Registered'),
-																		_1: {
-																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Partitions'),
-																			_1: {
-																				ctor: '::',
-																				_0: _connexity$ksql_web$Main$StringColumn('Partition Replicas'),
-																				_1: {
-																					ctor: '::',
-																					_0: _connexity$ksql_web$Main$StringColumn('Consumers'),
-																					_1: {
-																						ctor: '::',
-																						_0: _connexity$ksql_web$Main$StringColumn('Consumer Groups'),
-																						_1: {ctor: '[]'}
-																					}
-																				}
-																			}
-																		}
-																	}
-																},
-																_elm_lang$core$List$reverse(_p17._0)))
-													});
-											case 'DescribeResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: _elm_lang$core$Maybe$Just(
-															A2(
-																_connexity$ksql_web$Main$TabularResult,
-																{
-																	ctor: '::',
-																	_0: _connexity$ksql_web$Main$StringColumn('name'),
-																	_1: {
-																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('type'),
-																		_1: {ctor: '[]'}
-																	}
-																},
-																_elm_lang$core$List$reverse(_p17._0)))
-													});
-											case 'NotificationResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														notifications: {ctor: '::', _0: _p17._0, _1: model.notifications}
+															_connexity$ksql_web$Main$ExplainResult(_p25._0))
 													});
 											default:
 												var newErrorMessages = function () {
-													var _p19 = _elm_lang$core$String$lines(_p17._0);
-													if (_p19.ctor === '::') {
-														return {ctor: '::', _0: _p19._0, _1: model.errorMessages};
+													var _p27 = _elm_lang$core$String$lines(_p25._0);
+													if (_p27.ctor === '::') {
+														return {ctor: '::', _0: _p27._0, _1: model.errorMessages};
 													} else {
 														return model.errorMessages;
 													}
@@ -10627,23 +11077,23 @@ var _connexity$ksql_web$Main$update = F2(
 										}
 									}),
 								model,
-								_p16._0);
+								_p24._0);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
 								{
 									errorMessages: {
 										ctor: '::',
-										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p21),
+										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p29),
 										_1: {ctor: '[]'}
 									}
 								});
 						}
 					}(),
 					_1: function () {
-						var _p20 = model.result;
-						if ((_p20.ctor === 'Just') && (_p20._0.ctor === 'StreamingTabularResult')) {
-							return _connexity$ksql_web$Stream$isPaused(_p20._0._0) ? _elm_lang$core$Platform_Cmd$none : A2(
+						var _p28 = model.result;
+						if ((_p28.ctor === 'Just') && (_p28._0.ctor === 'StreamingTabularResult')) {
+							return _connexity$ksql_web$Stream$isPaused(_p28._0._0) ? _elm_lang$core$Platform_Cmd$none : A2(
 								_elm_lang$core$Task$attempt,
 								_connexity$ksql_web$Main$ConsoleScrolled,
 								_elm_lang$dom$Dom_Scroll$toBottom('output'));

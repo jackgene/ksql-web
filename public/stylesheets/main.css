@@ -3,13 +3,25 @@ body {
   font-family: arial, helvetica, sans-serif;
 }
 
-table, th, td {
+table.data, .data th, .data td {
   vertical-align: top;
   border: 1px solid #aaa;
   border-collapse: collapse;
 }
 
+table.metadata, .metadata th, .metadata td {
+  text-align: left;
+  vertical-align: top;
+  border: 0;
+  border-collapse: collapse;
+}
+
+h3 {
+  margin: 1.5em 0 0.25em 0;
+}
+
 pre {
+  margin: 0;
   font-size: 1.25em;
   white-space: pre-wrap;
 }

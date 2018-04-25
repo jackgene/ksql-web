@@ -37,17 +37,55 @@ type Column
 type alias Row = List Column
 
 
+-- Tabular data, result of most "SHOW ..."/"LIST ..."/"DESCRIBE ..." operations
 type alias Table =
   { headerRow : Row
   , dataRows : List Row
   }
 
 
+type alias Statistics =
+  { statistics : String
+  , errorStats : String
+  }
+
+
+type alias Topic =
+  { name : String
+  , partitions : Int
+  , replication : Int
+  }
+
+
+-- Result of "DESCRIBE EXTENDED ..."
+type alias ExtendedSchema =
+  { schemaType : String
+  , key : String
+  , timestamp : String
+  , serdes : String
+  , kafkaOutputTopic : Topic
+  , schema : List Row
+  , writeQueries : List String
+  , statistics : Statistics
+  }
+
+
+-- Result of "EXPLAIN ..."
+type alias ExecutionPlan =
+  { statementText : String
+  , statistics : Statistics
+  , kafkaOutputTopic : Topic
+  , executionPlan : String
+  , topology : String
+  }
+
+
 type QueryResult
   = StreamingTabularResult (Stream Row)
 --  | StreamingTextualResult Stream String
-  | TabularResult Row (List Row)
---  | DescribeExtendedResult String Table String
+  | TabularResult Table
+  | DescribeExtendedResult ExtendedSchema
+  | ExplainResult ExecutionPlan
 
 
 type alias Model =
@@ -86,14 +124,13 @@ type Msg
 
 
 type Response
-  = RowResponse Row
-  | ShowPropertiesResponse (List Row)
-  | ShowQueriesResponse (List Row)
-  | ShowStreamsResponse (List Row)
-  | ShowTablesResponse (List Row)
-  | ShowTopicsResponse (List Row)
-  | DescribeResponse (List Row)
-  | NotificationResponse String
+  = StreamedRowResponse Row
+  --| StreamedTextResponse String
+  | TableResponse Table
+  | DescribeExtendedResponse ExtendedSchema
+  | ExplainResponse ExecutionPlan
+  | NotificationMessageResponse String
+  | TableAndNotificationMessageResponse Table String
   | ErrorMessageResponse String
 
 
@@ -129,11 +166,13 @@ responseDecoder =
       let
         rowObjectDecoder : Decode.Decoder Row
         rowObjectDecoder =
-          let
-            rowDecoder : Decode.Decoder Row
-            rowDecoder = Decode.list columnDecoder
-          in Decode.at [ "row", "columns" ] rowDecoder
-      in Decode.map RowResponse rowObjectDecoder
+          Decode.at [ "row", "columns" ] (Decode.list columnDecoder)
+      in Decode.map StreamedRowResponse rowObjectDecoder
+
+
+    makeTableResponse : Row -> List Row -> Response
+    makeTableResponse headerRow dataRows =
+      TableResponse (Table headerRow (List.reverse dataRows))
 
 
     propertiesRespDecoder : Decode.Decoder Response
@@ -144,7 +183,10 @@ responseDecoder =
           Decode.map
             (\kvPairs -> List.map (\(k, v) -> [ StringColumn k, v ]) kvPairs)
             (Decode.at [ "properties", "properties" ] (Decode.keyValuePairs columnDecoder))
-      in Decode.map ShowPropertiesResponse propertiesObjectDecoder
+      in
+        Decode.map
+          (TableResponse << Table [ StringColumn "Property", StringColumn "Value" ])
+          propertiesObjectDecoder
 
 
     queriesRespDecoder : Decode.Decoder Response
@@ -161,7 +203,14 @@ responseDecoder =
                 (Decode.field "kafkaTopic" columnDecoder)
                 (Decode.field "queryString" columnDecoder)
           in Decode.at [ "queries", "queries" ] (Decode.list entryDecoder)
-      in Decode.map ShowQueriesResponse queriesObjectDecoder
+      in
+        Decode.map
+          ( flip TableAndNotificationMessageResponse
+            "For detailed information on a Query run: EXPLAIN <Query ID>;"
+            << Table [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ]
+            << List.reverse
+          )
+          queriesObjectDecoder
 
 
     streamsRespDecoder : Decode.Decoder Response
@@ -178,7 +227,17 @@ responseDecoder =
                 (Decode.field "topic" columnDecoder)
                 (Decode.field "format" columnDecoder)
           in Decode.at [ "streams", "streams" ] (Decode.list entryDecoder)
-      in Decode.map ShowStreamsResponse streamsObjectDecoder
+      in
+        Decode.map
+          ( TableResponse
+            << Table
+               [ StringColumn "Stream Name"
+               , StringColumn "Kafka Topic"
+               , StringColumn "Format"
+               ]
+            << List.reverse
+          )
+          streamsObjectDecoder
 
 
     tablesRespDecoder : Decode.Decoder Response
@@ -196,7 +255,18 @@ responseDecoder =
                 (Decode.field "format" columnDecoder)
                 (Decode.field "isWindowed" columnDecoder)
           in Decode.at [ "tables", "tables" ] (Decode.list entryDecoder)
-      in Decode.map ShowTablesResponse tablesObjectDecoder
+      in
+        Decode.map
+          ( TableResponse
+            << Table
+               [ StringColumn "Stream Name"
+               , StringColumn "Kafka Topic"
+               , StringColumn "Format"
+               , StringColumn "Windowed"
+               ]
+            << List.reverse
+          )
+          tablesObjectDecoder
 
 
     topicsRespDecoder : Decode.Decoder Response
@@ -218,34 +288,99 @@ responseDecoder =
                 (Decode.field "consumerCount" columnDecoder)
                 (Decode.field "consumerGroupCount" columnDecoder)
           in Decode.at [ "kafka_topics", "topics" ] (Decode.list entryDecoder)
-      in Decode.map ShowTopicsResponse topicsObjectDecoder
+      in
+        Decode.map
+          ( TableResponse
+            << Table
+               [ StringColumn "Kafka Topic"
+               , StringColumn "Registered"
+               , StringColumn "Partitions"
+               , StringColumn "Partition Replicas"
+               , StringColumn "Consumers"
+               , StringColumn "Consumer Groups"
+               ]
+            << List.reverse
+          )
+          topicsObjectDecoder
 
 
     descrRespDecoder : Decode.Decoder Response
     descrRespDecoder =
       let
-        descriptionObjectDecoder : Decode.Decoder ((List Row), String)
-        descriptionObjectDecoder =
-          let
-            entryDecoder : Decode.Decoder Row
-            entryDecoder =
-              Decode.map2
-                (\name -> \typename -> [ name, typename ])
-                (Decode.field "name" columnDecoder)
-                (Decode.field "type" columnDecoder)
-          in
-            Decode.map2
-              (\schema -> \executionPlan -> (schema, executionPlan))
-              (Decode.at [ "description", "schema" ] (Decode.list entryDecoder))
-              (Decode.at [ "description", "executionPlan" ] Decode.string)
+        entryDecoder : Decode.Decoder Row
+        entryDecoder =
+          Decode.map2 (\name -> \typename -> [ name, typename ])
+            (Decode.field "name" columnDecoder)
+            (Decode.field "type" columnDecoder)
+
+
+        descrObjectTypeDecoder : Decode.Decoder (String, Bool)
+        descrObjectTypeDecoder =
+          Decode.map2 (curry identity)
+            (Decode.field "type" Decode.string)
+            (Decode.field "extended" Decode.bool)
+
+
+        descrObjectBasicSchemaDecoder : Decode.Decoder (List Row)
+        descrObjectBasicSchemaDecoder =
+          Decode.field "schema" (Decode.list entryDecoder)
+
+
+        descrObjectStatsDecoder : Decode.Decoder Statistics
+        descrObjectStatsDecoder =
+          Decode.map2 Statistics
+            (Decode.field "statistics" Decode.string)
+            (Decode.field "errorStats" Decode.string)
+
+
+        descrObjectTopicDecoder : Decode.Decoder Topic
+        descrObjectTopicDecoder =
+          Decode.map3 Topic
+            (Decode.field "kafkaTopic" Decode.string)
+            (Decode.field "partitions" Decode.int)
+            (Decode.field "replication" Decode.int)
+
+
+        descrObjectExtendedSchemaDecoder : Decode.Decoder ExtendedSchema
+        descrObjectExtendedSchemaDecoder =
+          Decode.map8 ExtendedSchema
+            (Decode.field "type" Decode.string)
+            (Decode.field "key" Decode.string)
+            (Decode.field "timestamp" Decode.string)
+            (Decode.field "serdes" Decode.string)
+            descrObjectTopicDecoder
+            (Decode.field "schema" (Decode.list entryDecoder))
+            (Decode.field "writeQueries" (Decode.list Decode.string))
+            descrObjectStatsDecoder
+
+
+        descrObjectExplainDecoder : Decode.Decoder ExecutionPlan
+        descrObjectExplainDecoder =
+          Decode.map5 ExecutionPlan
+            (Decode.field "statementText" Decode.string)
+            descrObjectStatsDecoder
+            descrObjectTopicDecoder
+            (Decode.field "executionPlan" Decode.string)
+            (Decode.field "topology" Decode.string)
       in
-        Decode.map
-          ( \(schema, executionPlan) ->
-            if not (List.isEmpty schema) then DescribeResponse schema
-            else if not (String.isEmpty executionPlan) then NotificationResponse executionPlan
-            else ErrorMessageResponse "Description response has neither schema nor executionPlan."
+        Decode.field "description"
+          (descrObjectTypeDecoder |> Decode.andThen
+            ( \(descrType, extended) ->
+              case (descrType, extended) of
+                ("QUERY", _) ->
+                  Decode.map ExplainResponse descrObjectExplainDecoder
+                (_, False) -> -- TABLE/STREAM
+                  Decode.map
+                    ( flip TableAndNotificationMessageResponse
+                      "For runtime statistics and query details run: DESCRIBE EXTENDED <Stream,Table>;"
+                      << Table [ StringColumn "Field", StringColumn "Type" ]
+                      << List.reverse
+                    )
+                    descrObjectBasicSchemaDecoder
+                (_, True) -> -- TABLE/STREAM
+                  Decode.map DescribeExtendedResponse descrObjectExtendedSchemaDecoder
+            )
           )
-          descriptionObjectDecoder
 
 
     curStatusDecoder : Decode.Decoder Response
@@ -260,7 +395,7 @@ responseDecoder =
       in
         Decode.map
           ( \(success, message) ->
-            if success then NotificationResponse message
+            if success then NotificationMessageResponse message
             else ErrorMessageResponse message
           )
           currentStatusObjectDecoder
@@ -272,7 +407,7 @@ responseDecoder =
         notificationObjectDecoder : Decode.Decoder String
         notificationObjectDecoder =
           Decode.at [ "errorMessage", "message" ] Decode.string
-      in Decode.map NotificationResponse notificationObjectDecoder
+      in Decode.map NotificationMessageResponse notificationObjectDecoder
 
 
     errorMessageRespDecoder : Decode.Decoder Response
@@ -334,7 +469,7 @@ update msg model =
             List.foldr
               ( \response -> \model ->
                 case response of
-                  RowResponse row ->
+                  StreamedRowResponse row ->
                     let
                       rows : Stream Row
                       rows =
@@ -343,32 +478,19 @@ update msg model =
                           _ -> Stream.empty maxDisplayedRows
                     in
                       { model | result = Just (StreamingTabularResult (row ::: rows)) }
-                  ShowPropertiesResponse properties ->
-                    { model
-                    | result = Just (TabularResult [ StringColumn "Property", StringColumn "Value" ] properties)
-                    }
-                  ShowQueriesResponse queries ->
-                    { model
-                    | result = Just (TabularResult [ StringColumn "Query ID", StringColumn "Kafka Topic", StringColumn "Query String" ] (List.reverse queries))
-                    }
-                  ShowStreamsResponse streams ->
-                    { model
-                    | result = Just (TabularResult [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format" ] (List.reverse streams))
-                    }
-                  ShowTablesResponse tables ->
-                    { model
-                    | result = Just (TabularResult [ StringColumn "Stream Name", StringColumn "Kafka Topic", StringColumn "Format", StringColumn "Windowed" ] (List.reverse tables))
-                    }
-                  ShowTopicsResponse topics ->
-                    { model
-                    | result = Just (TabularResult [ StringColumn "Kafka Topic", StringColumn "Registered", StringColumn "Partitions", StringColumn "Partition Replicas", StringColumn "Consumers", StringColumn "Consumer Groups" ] (List.reverse topics))
-                    }
-                  DescribeResponse metaRows ->
-                    { model
-                    | result = Just (TabularResult [ StringColumn "name", StringColumn "type" ] (List.reverse metaRows))
-                    }
-                  NotificationResponse msg ->
+                  TableResponse table ->
+                    { model | result = Just (TabularResult table) }
+                  NotificationMessageResponse msg ->
                     { model | notifications = msg :: model.notifications }
+                  TableAndNotificationMessageResponse table msg ->
+                    { model
+                    | result = Just (TabularResult table)
+                    , notifications = msg :: model.notifications
+                    }
+                  DescribeExtendedResponse extendedSchema ->
+                    { model | result = Just (DescribeExtendedResult extendedSchema) }
+                  ExplainResponse executionPlan ->
+                    { model | result = Just (ExplainResult executionPlan) }
                   ErrorMessageResponse msg ->
                     let
                       newErrorMessages : List String
@@ -408,6 +530,20 @@ subscriptions model =
 
 
 -- View
+rowKeyType : List Row -> Maybe String
+rowKeyType schema =
+  List.head
+    ( List.filterMap
+      ( \row ->
+        case row of
+        [ StringColumn "ROWKEY", StringColumn "VARCHAR(STRING)" ] -> Just "STRING"
+        [ StringColumn "ROWKEY", StringColumn keyType ] -> Just keyType
+        _ -> Nothing
+      )
+      schema
+    )
+
+
 colView : Bool -> Column -> Html Msg
 colView isHeader col =
   (if isHeader then th else td)
@@ -426,6 +562,21 @@ colView isHeader col =
 rowView : Bool -> Row -> Html Msg
 rowView isHeader row =
   tr [] (List.map (colView isHeader) row)
+
+
+metadataRowView : String -> String -> Html Msg
+metadataRowView key value =
+  tr []
+    [ th [] [ text key ]
+    , td [] [ text ":" ]
+    , td [] [ text value ]
+    ]
+
+
+metadataTableView : List (String,String) -> Html Msg
+metadataTableView metadata =
+  table [ class "metadata" ]
+    (List.map (uncurry metadataRowView) metadata)
 
 
 messagesView : Maybe String -> List String -> List (Html Msg)
@@ -473,15 +624,15 @@ view model =
   , div [ id "output" ]
     ( ( case model.result of
           Just (StreamingTabularResult rows) ->
-            [ table []
+            [ table [ class "data" ]
               ( List.foldl
                 (\row -> \rowViews -> (rowView False row) :: rowViews)
                 []
                 (Stream.items rows)
               )
             ]
-          Just (TabularResult headerRow dataRows) ->
-            [ table []
+          Just (TabularResult {headerRow, dataRows}) ->
+            [ table [ class "data" ]
               ( rowView True headerRow ::
                 ( List.foldl
                   (\row -> \rowViews -> (rowView False row) :: rowViews)
@@ -490,6 +641,61 @@ view model =
                 )
               )
             ]
+          Just (DescribeExtendedResult schema) ->
+            ( metadataTableView
+              [ ( "Type", schema.schemaType )
+              , ( "Key field", schema.key )
+              , ( "Timestamp field"
+                , ( if String.isEmpty schema.timestamp then "Not set - using <ROWTIME>"
+                    else schema.timestamp
+                  )
+                )
+              , ( "Key format", Maybe.withDefault "" (rowKeyType schema.schema) )
+              , ( "Value format", schema.serdes )
+              , ( "Kafka output topic"
+                , ( schema.kafkaOutputTopic.name
+                  ++ " (partitions: " ++ (toString schema.kafkaOutputTopic.partitions)
+                  ++ ", replication: " ++ (toString schema.kafkaOutputTopic.replication)
+                  ++ ")"
+                  )
+                )
+              ]
+            ) ::
+            (br [] []) ::
+            ( table [ class "data" ]
+              ( rowView True [ StringColumn "Field", StringColumn "Type" ] ::
+                ( List.map (rowView False) schema.schema )
+              )
+            ) ::
+            ( if List.isEmpty schema.writeQueries then []
+              else
+                (h3 [] [ text ("Queries that write into this " ++ schema.schemaType) ]) ::
+                (messagesView Nothing schema.writeQueries)
+            ) ++
+            [ p [] [ text "For query topology and execution plan please run: EXPLAIN <QueryId>" ] ] ++
+            [ h3 [] [ text "Local runtime statistics" ] ] ++
+            messagesView Nothing [ schema.statistics.statistics ] ++
+            messagesView Nothing [ schema.statistics.errorStats ] ++
+            [ p []
+              [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ schema.kafkaOutputTopic.name ++ ")") ]
+            ]
+          Just (ExplainResult plan) ->
+            ( metadataTableView
+              ( ("Type", "QUERY") ::
+                if (String.isEmpty plan.statementText) then []
+                else [ ("SQL", plan.statementText) ]
+              )
+            ) ::
+            [ h3 [] [ text "Local runtime statistics" ] ] ++
+            messagesView Nothing [ plan.statistics.statistics ] ++
+            messagesView Nothing [ plan.statistics.errorStats ] ++
+            [ p []
+              [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ plan.kafkaOutputTopic.name ++ ")") ]
+            ] ++
+            [ h3 [] [ text "Execution plan" ] ] ++
+            messagesView Nothing [ plan.executionPlan ] ++
+            [ h3 [] [ text "Processing topology" ] ] ++
+            messagesView Nothing [ plan.topology ]
           Nothing -> []
       ) ++
       messagesView Nothing model.notifications ++
