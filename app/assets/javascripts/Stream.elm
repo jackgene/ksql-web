@@ -39,7 +39,7 @@ items : Stream a -> List a
 items stream =
   case stream of
     Live _ items -> items
-    Paused _ _ buffer -> buffer
+    Paused _ items _ -> items
 
 
 isPaused : Stream a -> Bool

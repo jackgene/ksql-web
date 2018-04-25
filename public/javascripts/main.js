@@ -8679,7 +8679,7 @@ var _connexity$ksql_web$Stream$items = function (stream) {
 	if (_p1.ctor === 'Live') {
 		return _p1._1;
 	} else {
-		return _p1._2;
+		return _p1._1;
 	}
 };
 var _connexity$ksql_web$Stream$addToStream = F3(
