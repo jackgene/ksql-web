@@ -637,113 +637,119 @@ messagesView maybeClassName messages =
 view : Model -> Html Msg
 view model =
   div []
-  [ div [ id "control" ]
-    [ div [ class "primary" ]
-      [ button
-        [ onClick RunQuery ]
-        [ text "▶" ]
-      , button
-        [ onClick PauseQuery ]
-        [ text "️❙❙" ]
-      , button
-        [ onClick StopQuery ]
-        [ text "◼" ]
-      ]
-    , div [ class "primary" ]
-      [ a [ href ("?query=" ++ (Http.encodeUri model.query)) ]
-        [ text "Link to this Query" ]
-      ]
-    , div [ class "secondary" ]
-      [ a
-        [ href "https://docs.confluent.io/current/ksql/docs/syntax-reference.html"
-        , target "_blank"
-        ]
-        [ text "KSQL Syntax Reference" ]
-      ]
-    ]
-  , div [ id "input" ]
-    [ textarea [ id "source", autofocus True ] [ text model.query ] ]
-  , div [ id "output" ]
-    ( ( case model.result of
-          Just (StreamingTabularResult rows) ->
-            [ table [ class "data" ]
-              ( List.foldl
-                (\row -> \rowViews -> (rowView False row) :: rowViews)
-                []
-                (Stream.items rows)
-              )
+    [ div [ id "control" ]
+      ( [ div [ class "primary" ]
+          [ button
+            [ onClick RunQuery ]
+            [ text "▶" ]
+          , button
+            [ onClick PauseQuery ]
+            [ text "️❙❙" ]
+          , button
+            [ onClick StopQuery ]
+            [ text "◼" ]
+          ]
+        ] ++
+        ( if String.isEmpty model.query then []
+          else
+            [ div [ class "primary" ]
+              [ a [ href ("?query=" ++ (Http.encodeUri model.query)) ]
+                [ text "Link to this Query" ]
+              ]
             ]
-          Just (TabularResult {headerRow, dataRows}) ->
-            [ table [ class "data" ]
-              ( rowView True headerRow ::
+        ) ++
+        [ div [ class "secondary" ]
+          [ a
+            [ href "https://docs.confluent.io/current/ksql/docs/syntax-reference.html"
+            , target "_blank"
+            ]
+            [ text "KSQL Syntax Reference" ]
+          ]
+        ]
+      )
+    , div [ id "input" ]
+      [ textarea [ id "source", autofocus True ] [ text model.query ] ]
+    , div [ id "output" ]
+      ( ( case model.result of
+            Just (StreamingTabularResult rows) ->
+              [ table [ class "data" ]
                 ( List.foldl
                   (\row -> \rowViews -> (rowView False row) :: rowViews)
                   []
-                  dataRows
+                  (Stream.items rows)
                 )
-              )
-            ]
-          Just (DescribeExtendedResult schema) ->
-            ( metadataTableView
-              [ ( "Type", schema.schemaType )
-              , ( "Key field", schema.key )
-              , ( "Timestamp field"
-                , ( if String.isEmpty schema.timestamp then "Not set - using <ROWTIME>"
-                    else schema.timestamp
-                  )
-                )
-              , ( "Key format", Maybe.withDefault "" (rowKeyType schema.schema) )
-              , ( "Value format", schema.serdes )
-              , ( "Kafka output topic"
-                , ( schema.kafkaOutputTopic.name
-                  ++ " (partitions: " ++ (toString schema.kafkaOutputTopic.partitions)
-                  ++ ", replication: " ++ (toString schema.kafkaOutputTopic.replication)
-                  ++ ")"
+              ]
+            Just (TabularResult {headerRow, dataRows}) ->
+              [ table [ class "data" ]
+                ( rowView True headerRow ::
+                  ( List.foldl
+                    (\row -> \rowViews -> (rowView False row) :: rowViews)
+                    []
+                    dataRows
                   )
                 )
               ]
-            ) ::
-            (br [] []) ::
-            ( table [ class "data" ]
-              ( rowView True [ StringColumn "Field", StringColumn "Type" ] ::
-                ( List.map (rowView False) schema.schema )
-              )
-            ) ::
-            ( if List.isEmpty schema.writeQueries then []
-              else
-                (h3 [] [ text ("Queries that write into this " ++ schema.schemaType) ]) ::
-                (messagesView Nothing schema.writeQueries)
-            ) ++
-            [ p [] [ text "For query topology and execution plan please run: EXPLAIN <QueryId>" ] ] ++
-            [ h3 [] [ text "Local runtime statistics" ] ] ++
-            messagesView Nothing [ schema.statistics.statistics ] ++
-            messagesView Nothing [ schema.statistics.errorStats ] ++
-            [ p []
-              [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ schema.kafkaOutputTopic.name ++ ")") ]
-            ]
-          Just (ExplainResult plan) ->
-            ( metadataTableView
-              ( ("Type", "QUERY") ::
-                if (String.isEmpty plan.statementText) then []
-                else [ ("SQL", plan.statementText) ]
-              )
-            ) ::
-            [ h3 [] [ text "Local runtime statistics" ] ] ++
-            messagesView Nothing [ plan.statistics.statistics ] ++
-            messagesView Nothing [ plan.statistics.errorStats ] ++
-            [ p []
-              [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ plan.kafkaOutputTopic.name ++ ")") ]
-            ] ++
-            [ h3 [] [ text "Execution plan" ] ] ++
-            messagesView Nothing [ plan.executionPlan ] ++
-            [ h3 [] [ text "Processing topology" ] ] ++
-            messagesView Nothing [ plan.topology ]
-          Nothing -> []
-      ) ++
-      messagesView Nothing model.notifications ++
-      messagesView (Just "error") model.errorMessages
-    )
-  ]
+            Just (DescribeExtendedResult schema) ->
+              ( metadataTableView
+                [ ( "Type", schema.schemaType )
+                , ( "Key field", schema.key )
+                , ( "Timestamp field"
+                  , ( if String.isEmpty schema.timestamp then "Not set - using <ROWTIME>"
+                      else schema.timestamp
+                    )
+                  )
+                , ( "Key format", Maybe.withDefault "" (rowKeyType schema.schema) )
+                , ( "Value format", schema.serdes )
+                , ( "Kafka output topic"
+                  , ( schema.kafkaOutputTopic.name
+                    ++ " (partitions: " ++ (toString schema.kafkaOutputTopic.partitions)
+                    ++ ", replication: " ++ (toString schema.kafkaOutputTopic.replication)
+                    ++ ")"
+                    )
+                  )
+                ]
+              ) ::
+              (br [] []) ::
+              ( table [ class "data" ]
+                ( rowView True [ StringColumn "Field", StringColumn "Type" ] ::
+                  ( List.map (rowView False) schema.schema )
+                )
+              ) ::
+              ( if List.isEmpty schema.writeQueries then []
+                else
+                  (h3 [] [ text ("Queries that write into this " ++ schema.schemaType) ]) ::
+                  (messagesView Nothing schema.writeQueries)
+              ) ++
+              [ p [] [ text "For query topology and execution plan please run: EXPLAIN <QueryId>" ] ] ++
+              [ h3 [] [ text "Local runtime statistics" ] ] ++
+              messagesView Nothing [ schema.statistics.statistics ] ++
+              messagesView Nothing [ schema.statistics.errorStats ] ++
+              [ p []
+                [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ schema.kafkaOutputTopic.name ++ ")") ]
+              ]
+            Just (ExplainResult plan) ->
+              ( metadataTableView
+                ( ("Type", "QUERY") ::
+                  if (String.isEmpty plan.statementText) then []
+                  else [ ("SQL", plan.statementText) ]
+                )
+              ) ::
+              [ h3 [] [ text "Local runtime statistics" ] ] ++
+              messagesView Nothing [ plan.statistics.statistics ] ++
+              messagesView Nothing [ plan.statistics.errorStats ] ++
+              [ p []
+                [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ plan.kafkaOutputTopic.name ++ ")") ]
+              ] ++
+              [ h3 [] [ text "Execution plan" ] ] ++
+              messagesView Nothing [ plan.executionPlan ] ++
+              [ h3 [] [ text "Processing topology" ] ] ++
+              messagesView Nothing [ plan.topology ]
+            Nothing -> []
+        ) ++
+        messagesView Nothing model.notifications ++
+        messagesView (Just "error") model.errorMessages
+      )
+    ]
 
 
 main : Program Flags Model Msg

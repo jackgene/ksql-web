@@ -10212,62 +10212,9 @@ var _connexity$ksql_web$Main$view = function (model) {
 					_0: _elm_lang$html$Html_Attributes$id('control'),
 					_1: {ctor: '[]'}
 				},
-				{
-					ctor: '::',
-					_0: A2(
-						_elm_lang$html$Html$div,
-						{
-							ctor: '::',
-							_0: _elm_lang$html$Html_Attributes$class('primary'),
-							_1: {ctor: '[]'}
-						},
-						{
-							ctor: '::',
-							_0: A2(
-								_elm_lang$html$Html$button,
-								{
-									ctor: '::',
-									_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$RunQuery),
-									_1: {ctor: '[]'}
-								},
-								{
-									ctor: '::',
-									_0: _elm_lang$html$Html$text('▶'),
-									_1: {ctor: '[]'}
-								}),
-							_1: {
-								ctor: '::',
-								_0: A2(
-									_elm_lang$html$Html$button,
-									{
-										ctor: '::',
-										_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$PauseQuery),
-										_1: {ctor: '[]'}
-									},
-									{
-										ctor: '::',
-										_0: _elm_lang$html$Html$text('️❙❙'),
-										_1: {ctor: '[]'}
-									}),
-								_1: {
-									ctor: '::',
-									_0: A2(
-										_elm_lang$html$Html$button,
-										{
-											ctor: '::',
-											_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$StopQuery),
-											_1: {ctor: '[]'}
-										},
-										{
-											ctor: '::',
-											_0: _elm_lang$html$Html$text('◼'),
-											_1: {ctor: '[]'}
-										}),
-									_1: {ctor: '[]'}
-								}
-							}
-						}),
-					_1: {
+				A2(
+					_elm_lang$core$Basics_ops['++'],
+					{
 						ctor: '::',
 						_0: A2(
 							_elm_lang$html$Html$div,
@@ -10279,24 +10226,85 @@ var _connexity$ksql_web$Main$view = function (model) {
 							{
 								ctor: '::',
 								_0: A2(
-									_elm_lang$html$Html$a,
+									_elm_lang$html$Html$button,
 									{
 										ctor: '::',
-										_0: _elm_lang$html$Html_Attributes$href(
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												'?query=',
-												_elm_lang$http$Http$encodeUri(model.query))),
+										_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$RunQuery),
 										_1: {ctor: '[]'}
 									},
 									{
 										ctor: '::',
-										_0: _elm_lang$html$Html$text('Link to this Query'),
+										_0: _elm_lang$html$Html$text('▶'),
 										_1: {ctor: '[]'}
 									}),
-								_1: {ctor: '[]'}
+								_1: {
+									ctor: '::',
+									_0: A2(
+										_elm_lang$html$Html$button,
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$PauseQuery),
+											_1: {ctor: '[]'}
+										},
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html$text('️❙❙'),
+											_1: {ctor: '[]'}
+										}),
+									_1: {
+										ctor: '::',
+										_0: A2(
+											_elm_lang$html$Html$button,
+											{
+												ctor: '::',
+												_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$StopQuery),
+												_1: {ctor: '[]'}
+											},
+											{
+												ctor: '::',
+												_0: _elm_lang$html$Html$text('◼'),
+												_1: {ctor: '[]'}
+											}),
+										_1: {ctor: '[]'}
+									}
+								}
 							}),
-						_1: {
+						_1: {ctor: '[]'}
+					},
+					A2(
+						_elm_lang$core$Basics_ops['++'],
+						_elm_lang$core$String$isEmpty(model.query) ? {ctor: '[]'} : {
+							ctor: '::',
+							_0: A2(
+								_elm_lang$html$Html$div,
+								{
+									ctor: '::',
+									_0: _elm_lang$html$Html_Attributes$class('primary'),
+									_1: {ctor: '[]'}
+								},
+								{
+									ctor: '::',
+									_0: A2(
+										_elm_lang$html$Html$a,
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html_Attributes$href(
+												A2(
+													_elm_lang$core$Basics_ops['++'],
+													'?query=',
+													_elm_lang$http$Http$encodeUri(model.query))),
+											_1: {ctor: '[]'}
+										},
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html$text('Link to this Query'),
+											_1: {ctor: '[]'}
+										}),
+									_1: {ctor: '[]'}
+								}),
+							_1: {ctor: '[]'}
+						},
+						{
 							ctor: '::',
 							_0: A2(
 								_elm_lang$html$Html$div,
@@ -10326,9 +10334,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 									_1: {ctor: '[]'}
 								}),
 							_1: {ctor: '[]'}
-						}
-					}
-				}),
+						}))),
 			_1: {
 				ctor: '::',
 				_0: A2(
