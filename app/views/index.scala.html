@@ -9,6 +9,7 @@
     let app = Elm.Main.fullscreen(
       { secure: window.location.protocol === "https:"
       , host: window.location.host
+      , search: window.location.search
       , initialQuery : localStorage.getItem("query") || ""
       }
     );

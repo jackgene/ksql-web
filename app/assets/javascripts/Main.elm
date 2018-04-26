@@ -5,6 +5,7 @@ import Dom.Scroll
 import Html exposing (..)
 import Html.Attributes exposing (autofocus, class, href, id, target)
 import Html.Events exposing (onClick)
+import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Stream exposing (Stream, (:::))
@@ -23,6 +24,7 @@ port codeMirrorDocValueChangedSub : (String -> msg) -> Sub msg
 type alias Flags =
   { secure : Bool
   , host : String
+  , search : String
   , initialQuery : String
   }
 
@@ -102,13 +104,51 @@ webSocketUrl flag =
   (if flag.secure then "wss" else "ws") ++ "://" ++ flag.host ++ "/ksql"
 
 
+ksqlCommandJson : String -> Encode.Value
+ksqlCommandJson query =
+  Encode.object [ ("ksql", Encode.string query) ]
+
+
+sendQuery : Flags -> String -> Cmd msg
+sendQuery flags query =
+  WebSocket.send (webSocketUrl flags) (Encode.encode 0 (ksqlCommandJson query))
+
+
+searchParts : String -> List String
+searchParts search =
+  (String.split "&" (String.dropLeft 1 search))
+
+
+queryFromSearch : String -> Maybe String
+queryFromSearch search =
+  List.head
+    ( List.filterMap
+      (\searchPart ->
+        case String.split "=" searchPart of
+          [ "query", query ] -> Http.decodeUri query
+          _ -> Nothing
+      )
+      (searchParts search)
+    )
+
+
+runOnInit  : String -> Bool
+runOnInit search =
+  not (List.isEmpty (List.filter (String.startsWith "run") (searchParts search)))
+
+
 init : Flags -> (Model, Cmd Msg)
 init flags =
   ( Model flags "" Nothing [] []
   , Cmd.batch
-    [ codeMirrorDocSetValueCmd flags.initialQuery
-    , codeMirrorFromTextAreaCmd "source"
-    ]
+    ( ( case (runOnInit flags.search, queryFromSearch flags.search) of
+          (True, Just query) -> [ sendQuery flags query ]
+          _ -> []
+      ) ++
+      [ codeMirrorDocSetValueCmd (Maybe.withDefault flags.initialQuery (queryFromSearch flags.search))
+      , codeMirrorFromTextAreaCmd "source"
+      ]
+    )
   )
 
 
@@ -132,12 +172,6 @@ type Response
   | NotificationMessageResponse String
   | TableAndNotificationMessageResponse Table String
   | ErrorMessageResponse String
-
-
-ksqlCommandJson : String -> Encode.Value
-ksqlCommandJson query =
-  Encode.object [ ("ksql", Encode.string query) ]
-
 
 
 responseDecoder : Decode.Decoder Response
@@ -449,7 +483,7 @@ update msg model =
         , notifications = []
         , errorMessages = []
         }
-      , WebSocket.send (webSocketUrl model.flags) (Encode.encode 0 (ksqlCommandJson model.query))
+      , sendQuery model.flags model.query
       )
     PauseQuery ->
       case model.result of
@@ -604,16 +638,22 @@ view : Model -> Html Msg
 view model =
   div []
   [ div [ id "control" ]
-    [ button
-      [ onClick RunQuery ]
-      [ text "▶" ]
-    , button
-      [ onClick PauseQuery ]
-      [ text "️❙❙" ]
-    , button
-      [ onClick StopQuery ]
-      [ text "◼" ]
-    , div []
+    [ div [ class "primary" ]
+      [ button
+        [ onClick RunQuery ]
+        [ text "▶" ]
+      , button
+        [ onClick PauseQuery ]
+        [ text "️❙❙" ]
+      , button
+        [ onClick StopQuery ]
+        [ text "◼" ]
+      ]
+    , div [ class "primary" ]
+      [ a [ href ("?query=" ++ (Http.encodeUri model.query)) ]
+        [ text "Link to this Query" ]
+      ]
+    , div [ class "secondary" ]
       [ a
         [ href "https://docs.confluent.io/current/ksql/docs/syntax-reference.html"
         , target "_blank"

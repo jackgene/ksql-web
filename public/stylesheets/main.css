@@ -48,12 +48,24 @@ pre {
   left: 0;
   right: 0;
   height: 24px;
-  padding: 4px;
   font-size: 0.75em;
 }
 
-#control div {
+#control div.primary {
+  float: left;
+  padding: 5px 2px;
+  height: 16px;
+}
+
+#control div.primary button {
+  position: relative;
+  top: -2px;
+}
+
+#control div.secondary {
   float: right;
+  padding: 5px 2px;
+  height: 16px;
 }
 
 #input {
