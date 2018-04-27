@@ -10093,6 +10093,18 @@ var _connexity$ksql_web$Main$codeMirrorDocSetValueCmd = _elm_lang$core$Native_Pl
 		return v;
 	});
 var _connexity$ksql_web$Main$codeMirrorDocValueChangedSub = _elm_lang$core$Native_Platform.incomingPort('codeMirrorDocValueChangedSub', _elm_lang$core$Json_Decode$string);
+var _connexity$ksql_web$Main$codeMirrorKeyMapRunQuerySub = _elm_lang$core$Native_Platform.incomingPort(
+	'codeMirrorKeyMapRunQuerySub',
+	_elm_lang$core$Json_Decode$null(
+		{ctor: '_Tuple0'}));
+var _connexity$ksql_web$Main$codeMirrorKeyMapPauseQuerySub = _elm_lang$core$Native_Platform.incomingPort(
+	'codeMirrorKeyMapPauseQuerySub',
+	_elm_lang$core$Json_Decode$null(
+		{ctor: '_Tuple0'}));
+var _connexity$ksql_web$Main$codeMirrorKeyMapStopQuerySub = _elm_lang$core$Native_Platform.incomingPort(
+	'codeMirrorKeyMapStopQuerySub',
+	_elm_lang$core$Json_Decode$null(
+		{ctor: '_Tuple0'}));
 var _connexity$ksql_web$Main$Flags = F4(
 	function (a, b, c, d) {
 		return {secure: a, host: b, search: c, initialQuery: d};
@@ -10193,8 +10205,8 @@ var _connexity$ksql_web$Main$ConsoleScrolled = function (a) {
 var _connexity$ksql_web$Main$SendWebSocketKeepAlive = function (a) {
 	return {ctor: 'SendWebSocketKeepAlive', _0: a};
 };
-var _connexity$ksql_web$Main$QueryResponse = function (a) {
-	return {ctor: 'QueryResponse', _0: a};
+var _connexity$ksql_web$Main$WebSocketIncoming = function (a) {
+	return {ctor: 'WebSocketIncoming', _0: a};
 };
 var _connexity$ksql_web$Main$StopQuery = {ctor: 'StopQuery'};
 var _connexity$ksql_web$Main$PauseQuery = {ctor: 'PauseQuery'};
@@ -10230,7 +10242,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 									{
 										ctor: '::',
 										_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$RunQuery),
-										_1: {ctor: '[]'}
+										_1: {
+											ctor: '::',
+											_0: _elm_lang$html$Html_Attributes$title('Run Query (Shift-Enter)'),
+											_1: {ctor: '[]'}
+										}
 									},
 									{
 										ctor: '::',
@@ -10244,7 +10260,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 										{
 											ctor: '::',
 											_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$PauseQuery),
-											_1: {ctor: '[]'}
+											_1: {
+												ctor: '::',
+												_0: _elm_lang$html$Html_Attributes$title('Pause/Resume Query (Ctrl-P)'),
+												_1: {ctor: '[]'}
+											}
 										},
 										{
 											ctor: '::',
@@ -10258,7 +10278,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 											{
 												ctor: '::',
 												_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$StopQuery),
-												_1: {ctor: '[]'}
+												_1: {
+													ctor: '::',
+													_0: _elm_lang$html$Html_Attributes$title('Stop Query (Ctrl-C)'),
+													_1: {ctor: '[]'}
+												}
 											},
 											{
 												ctor: '::',
@@ -10747,14 +10771,29 @@ var _connexity$ksql_web$Main$subscriptions = function (model) {
 			_0: _connexity$ksql_web$Main$codeMirrorDocValueChangedSub(_connexity$ksql_web$Main$ChangeQuery),
 			_1: {
 				ctor: '::',
-				_0: A2(_elm_lang$core$Time$every, 60 * _elm_lang$core$Time$second, _connexity$ksql_web$Main$SendWebSocketKeepAlive),
+				_0: _connexity$ksql_web$Main$codeMirrorKeyMapRunQuerySub(
+					_elm_lang$core$Basics$always(_connexity$ksql_web$Main$RunQuery)),
 				_1: {
 					ctor: '::',
-					_0: A2(
-						_elm_lang$websocket$WebSocket$listen,
-						_connexity$ksql_web$Main$webSocketUrl(model.flags),
-						_connexity$ksql_web$Main$QueryResponse),
-					_1: {ctor: '[]'}
+					_0: _connexity$ksql_web$Main$codeMirrorKeyMapPauseQuerySub(
+						_elm_lang$core$Basics$always(_connexity$ksql_web$Main$PauseQuery)),
+					_1: {
+						ctor: '::',
+						_0: _connexity$ksql_web$Main$codeMirrorKeyMapStopQuerySub(
+							_elm_lang$core$Basics$always(_connexity$ksql_web$Main$StopQuery)),
+						_1: {
+							ctor: '::',
+							_0: A2(_elm_lang$core$Time$every, 60 * _elm_lang$core$Time$second, _connexity$ksql_web$Main$SendWebSocketKeepAlive),
+							_1: {
+								ctor: '::',
+								_0: A2(
+									_elm_lang$websocket$WebSocket$listen,
+									_connexity$ksql_web$Main$webSocketUrl(model.flags),
+									_connexity$ksql_web$Main$WebSocketIncoming),
+								_1: {ctor: '[]'}
+							}
+						}
+					}
 				}
 			}
 		});
@@ -11461,7 +11500,7 @@ var _connexity$ksql_web$Main$update = F2(
 						_connexity$ksql_web$Main$webSocketUrl(model.flags),
 						'{\"cmd\":\"stop\"}')
 				};
-			case 'QueryResponse':
+			case 'WebSocketIncoming':
 				var _p32 = _p23._0;
 				return {
 					ctor: '_Tuple2',

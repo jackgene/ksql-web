@@ -13,7 +13,7 @@
       , initialQuery : localStorage.getItem("query") || ""
       }
     );
-      var cm;
+      let cm;
 
       app.ports.localStorageSetItemCmd.subscribe(
         function(keyValue) {
@@ -31,7 +31,21 @@
               indentUnit: 2,
               indentWithTabs: false,
               mode: 'text/x-ksql',
-              theme: 'eclipse'
+              theme: 'eclipse',
+              "extraKeys": {
+                "Shift-Enter": function() {
+                  app.ports.codeMirrorKeyMapRunQuerySub.send(null);
+                },
+                "Cmd-Enter": function() {
+                  app.ports.codeMirrorKeyMapRunQuerySub.send(null);
+                },
+                "Ctrl-P": function() {
+                  app.ports.codeMirrorKeyMapPauseQuerySub.send(null);
+                },
+                "Ctrl-C": function() {
+                  app.ports.codeMirrorKeyMapStopQuerySub.send(null);
+                }
+              }
             }
           );
           cm.on(

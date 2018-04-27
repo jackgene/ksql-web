@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Dom
 import Dom.Scroll
 import Html exposing (..)
-import Html.Attributes exposing (autofocus, class, href, id, target)
+import Html.Attributes exposing (autofocus, class, href, id, target, title)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
@@ -18,6 +18,9 @@ port localStorageSetItemCmd : (String, String) -> Cmd msg
 port codeMirrorFromTextAreaCmd : String -> Cmd msg
 port codeMirrorDocSetValueCmd : String -> Cmd msg
 port codeMirrorDocValueChangedSub : (String -> msg) -> Sub msg
+port codeMirrorKeyMapRunQuerySub : (() -> msg) -> Sub msg
+port codeMirrorKeyMapPauseQuerySub : (() -> msg) -> Sub msg
+port codeMirrorKeyMapStopQuerySub : (() -> msg) -> Sub msg
 
 
 -- Model
@@ -158,7 +161,7 @@ type Msg
   | RunQuery
   | PauseQuery
   | StopQuery
-  | QueryResponse String
+  | WebSocketIncoming String
   | SendWebSocketKeepAlive Time
   | ConsoleScrolled (Result Dom.Error ())
 
@@ -499,7 +502,7 @@ update msg model =
       ( model
       , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
-    QueryResponse responseJson ->
+    WebSocketIncoming responseJson ->
       ( case Decode.decodeString (Decode.list responseDecoder) responseJson of
           Ok responses ->
             List.foldr
@@ -560,8 +563,11 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
     [ codeMirrorDocValueChangedSub ChangeQuery
+    , codeMirrorKeyMapRunQuerySub (always RunQuery)
+    , codeMirrorKeyMapPauseQuerySub (always PauseQuery)
+    , codeMirrorKeyMapStopQuerySub (always StopQuery)
     , Time.every (60 * second) SendWebSocketKeepAlive
-    , WebSocket.listen (webSocketUrl model.flags) QueryResponse
+    , WebSocket.listen (webSocketUrl model.flags) WebSocketIncoming
     ]
 
 
@@ -640,13 +646,13 @@ view model =
     [ div [ id "control" ]
       ( [ div [ class "primary" ]
           [ button
-            [ onClick RunQuery ]
+            [ onClick RunQuery, title "Run Query (Shift-Enter)" ]
             [ text "▶" ]
           , button
-            [ onClick PauseQuery ]
+            [ onClick PauseQuery, title "Pause/Resume Query (Ctrl-P)" ]
             [ text "️❙❙" ]
           , button
-            [ onClick StopQuery ]
+            [ onClick StopQuery, title "Stop Query (Ctrl-C)" ]
             [ text "◼" ]
           ]
         ] ++
