@@ -37,6 +37,7 @@ type Column
   | IntColumn Int
   | StringColumn String
   | NullColumn
+  | ArrayColumn (List Column)
 
 
 type alias Row = List Column
@@ -194,8 +195,12 @@ responseDecoder =
 
         nullColumnDecoder : Decode.Decoder Column
         nullColumnDecoder = Decode.null NullColumn
+
+        arrayColumnDecoder : Decode.Decoder Column
+        arrayColumnDecoder = Decode.map ArrayColumn (Decode.list (Decode.lazy (\_ -> columnDecoder)))
       in
-        Decode.oneOf [ boolColumnDecoder, intColumnDecoder, stringColumnDecoder, nullColumnDecoder ]
+        Decode.oneOf
+        [ boolColumnDecoder, intColumnDecoder, stringColumnDecoder, nullColumnDecoder, arrayColumnDecoder ]
 
 
     rowRespDecoder : Decode.Decoder Response
@@ -586,20 +591,27 @@ rowKeyType schema =
     )
 
 
+colContentView : Column -> List (Html Msg)
+colContentView col =
+  case col of
+    BoolColumn value ->
+      [ text (String.toLower (toString value)) ]
+    IntColumn value ->
+      [ text (toString value) ]
+    StringColumn value ->
+      [ text value ]
+    NullColumn ->
+      [ span [ class "null" ] [ text "(null)" ] ]
+    ArrayColumn values ->
+      List.intersperse (text ", ")
+        (List.concatMap colContentView values)
+
+
 colView : Bool -> Column -> Html Msg
 colView isHeader col =
   (if isHeader then th else td)
   []
-  [ case col of
-      BoolColumn value ->
-        text (String.toLower (toString value))
-      IntColumn value ->
-        text (toString value)
-      StringColumn value ->
-        text value
-      NullColumn ->
-        span [ class "null" ] [ text "(null)" ]
-  ]
+  (colContentView col)
 
 rowView : Bool -> Row -> Html Msg
 rowView isHeader row =
