@@ -9984,7 +9984,7 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 					_elm_lang$html$Html$span,
 					{
 						ctor: '::',
-						_0: _elm_lang$html$Html_Attributes$class('null'),
+						_0: _elm_lang$html$Html_Attributes$class('meta'),
 						_1: {ctor: '[]'}
 					},
 					{
@@ -9997,7 +9997,18 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 		default:
 			return A2(
 				_elm_lang$core$List$intersperse,
-				_elm_lang$html$Html$text(', '),
+				A2(
+					_elm_lang$html$Html$span,
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html_Attributes$class('meta'),
+						_1: {ctor: '[]'}
+					},
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html$text(', '),
+						_1: {ctor: '[]'}
+					}),
 				A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Main$colContentView, _p2._0));
 	}
 };

@@ -601,9 +601,10 @@ colContentView col =
     StringColumn value ->
       [ text value ]
     NullColumn ->
-      [ span [ class "null" ] [ text "(null)" ] ]
+      [ span [ class "meta" ] [ text "(null)" ] ]
     ArrayColumn values ->
-      List.intersperse (text ", ")
+      List.intersperse
+        (span [ class "meta" ] [ text ", " ])
         (List.concatMap colContentView values)
 
 
