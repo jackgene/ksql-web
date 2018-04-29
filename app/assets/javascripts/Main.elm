@@ -88,7 +88,7 @@ type alias ExecutionPlan =
 
 type QueryResult
   = StreamingTabularResult (Stream Row)
---  | StreamingTextualResult Stream String
+  | StreamingTextualResult (Stream String)
   | TabularResult Table
   | DescribeExtendedResult ExtendedSchema
   | ExplainResult ExecutionPlan
@@ -168,8 +168,11 @@ type Msg
 
 
 type Response
-  = StreamedRowResponse Row
-  --| StreamedTextResponse String
+  -- Meta... responses are KSQL Web specific control messages
+  = MetaRawContentFollows String
+  -- Everything else come from the KSQL REST API
+  | StreamedRowResponse Row
+  | StreamedTextResponse String
   | TableResponse Table
   | DescribeExtendedResponse ExtendedSchema
   | ExplainResponse ExecutionPlan
@@ -181,6 +184,19 @@ type Response
 responseDecoder : Decode.Decoder Response
 responseDecoder =
   let
+    -- Decodes {"ksqlWeb":...}
+    ksqlWebRespDecoder : Decode.Decoder Response
+    ksqlWebRespDecoder =
+      Decode.field "ksqlWeb"
+        (Decode.field "msg" Decode.string |> Decode.andThen
+          ( \msg ->
+            case msg of
+              _ ->
+                Decode.map MetaRawContentFollows (Decode.field "format" Decode.string)
+          )
+        )
+
+
     columnDecoder : Decode.Decoder Column
     columnDecoder =
       let
@@ -212,11 +228,7 @@ responseDecoder =
       in Decode.map StreamedRowResponse rowObjectDecoder
 
 
-    makeTableResponse : Row -> List Row -> Response
-    makeTableResponse headerRow dataRows =
-      TableResponse (Table headerRow (List.reverse dataRows))
-
-
+    -- Decodes {"properties":...}
     propertiesRespDecoder : Decode.Decoder Response
     propertiesRespDecoder =
       let
@@ -231,6 +243,7 @@ responseDecoder =
           propertiesObjectDecoder
 
 
+    -- Decodes {"queries":...}
     queriesRespDecoder : Decode.Decoder Response
     queriesRespDecoder =
       let
@@ -255,6 +268,7 @@ responseDecoder =
           queriesObjectDecoder
 
 
+    -- Decodes {"streams":...}
     streamsRespDecoder : Decode.Decoder Response
     streamsRespDecoder =
       let
@@ -282,6 +296,7 @@ responseDecoder =
           streamsObjectDecoder
 
 
+    -- Decodes {"tables":...}
     tablesRespDecoder : Decode.Decoder Response
     tablesRespDecoder =
       let
@@ -311,6 +326,7 @@ responseDecoder =
           tablesObjectDecoder
 
 
+    -- Decodes {"kafka_topics":...}
     topicsRespDecoder : Decode.Decoder Response
     topicsRespDecoder =
       let
@@ -346,6 +362,7 @@ responseDecoder =
           topicsObjectDecoder
 
 
+    -- Decodes {"description":...}
     descrRespDecoder : Decode.Decoder Response
     descrRespDecoder =
       let
@@ -425,6 +442,7 @@ responseDecoder =
           )
 
 
+    -- Decodes {"currentStatus":...}
     curStatusDecoder : Decode.Decoder Response
     curStatusDecoder =
       let
@@ -443,6 +461,13 @@ responseDecoder =
           currentStatusObjectDecoder
 
 
+    -- Decodes plain strings (PRINT response)
+    rawContentDecoder : Decode.Decoder Response
+    rawContentDecoder =
+      Decode.map StreamedTextResponse Decode.string
+
+
+    -- Decodes {"errorMessage":...}
     notificationRespDecoder : Decode.Decoder Response
     notificationRespDecoder =
       let
@@ -452,6 +477,7 @@ responseDecoder =
       in Decode.map NotificationMessageResponse notificationObjectDecoder
 
 
+    -- Decodes {"error":...}
     errorMessageRespDecoder : Decode.Decoder Response
     errorMessageRespDecoder =
       let
@@ -461,7 +487,8 @@ responseDecoder =
       in Decode.map ErrorMessageResponse errorMessageObjectDecoder
   in
     Decode.oneOf
-      [ rowRespDecoder
+      [ ksqlWebRespDecoder
+      , rowRespDecoder
       , propertiesRespDecoder
       , queriesRespDecoder
       , streamsRespDecoder
@@ -469,6 +496,7 @@ responseDecoder =
       , topicsRespDecoder
       , descrRespDecoder
       , curStatusDecoder
+      , rawContentDecoder
       , notificationRespDecoder
       , errorMessageRespDecoder
       ]
@@ -522,19 +550,40 @@ update msg model =
                           _ -> Stream.empty maxDisplayedRows
                     in
                       { model | result = Just (StreamingTabularResult (row ::: rows)) }
+
                   TableResponse table ->
                     { model | result = Just (TabularResult table) }
+
                   NotificationMessageResponse msg ->
                     { model | notifications = msg :: model.notifications }
+
                   TableAndNotificationMessageResponse table msg ->
                     { model
                     | result = Just (TabularResult table)
                     , notifications = msg :: model.notifications
                     }
+
                   DescribeExtendedResponse extendedSchema ->
                     { model | result = Just (DescribeExtendedResult extendedSchema) }
+
                   ExplainResponse executionPlan ->
                     { model | result = Just (ExplainResult executionPlan) }
+
+                  MetaRawContentFollows format ->
+                    { model
+                    | result = Just (StreamingTextualResult (("Format: " ++ format) ::: Stream.empty maxDisplayedRows))
+                    }
+
+                  StreamedTextResponse line ->
+                    let
+                      lines : Stream String
+                      lines =
+                        case model.result of
+                          Just (StreamingTextualResult lines) -> lines
+                          _ -> Stream.empty maxDisplayedRows
+                    in
+                      { model | result = Just (StreamingTextualResult (line ::: lines)) }
+
                   ErrorMessageResponse msg ->
                     let
                       newErrorMessages : List String
@@ -552,6 +601,9 @@ update msg model =
       , case model.result of
           Just (StreamingTabularResult rows) ->
             if (Stream.isPaused rows) then Cmd.none
+            else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+          Just (StreamingTextualResult lines) ->
+            if (Stream.isPaused lines) then Cmd.none
             else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
           _ -> Cmd.none
       )
@@ -698,6 +750,7 @@ view model =
                   (Stream.items rows)
                 )
               ]
+
             Just (TabularResult {headerRow, dataRows}) ->
               [ table [ class "data" ]
                 ( rowView True headerRow ::
@@ -708,6 +761,7 @@ view model =
                   )
                 )
               ]
+
             Just (DescribeExtendedResult schema) ->
               ( metadataTableView
                 [ ( "Type", schema.schemaType )
@@ -746,6 +800,7 @@ view model =
               [ p []
                 [ text ("(Statistics of the local KSQL server interaction with the Kafka topic " ++ schema.kafkaOutputTopic.name ++ ")") ]
               ]
+
             Just (ExplainResult plan) ->
               ( metadataTableView
                 ( ("Type", "QUERY") ::
@@ -763,6 +818,10 @@ view model =
               messagesView Nothing [ plan.executionPlan ] ++
               [ h3 [] [ text "Processing topology" ] ] ++
               messagesView Nothing [ plan.topology ]
+
+            Just (StreamingTextualResult lines) ->
+              messagesView Nothing (List.reverse (Stream.items lines))
+
             Nothing -> []
         ) ++
         messagesView Nothing model.notifications ++

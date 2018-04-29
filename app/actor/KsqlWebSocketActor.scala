@@ -67,6 +67,7 @@ object KsqlWebSocketActor {
     case object KsqlQueryDone
     case object Stop
 
+    private val RawFormat = "Format:([A-Z]+)\n(.*)".r
     def props(query: String, webSocketClient: ActorRef, ws: WSClient, cfg: Configuration): Props =
       Props(new PerQueryActor(query, webSocketClient, ws, cfg))
   }
@@ -111,7 +112,7 @@ object KsqlWebSocketActor {
           }.
           map { _ => KsqlQueryDone }.
           pipeTo(self)
-        context.become(processingResponseBody("", done = false))
+        context.become(processingJsonResponseBody("", done = false))
 
       case Stop =>
         log.debug("Received stop request.")
@@ -124,24 +125,36 @@ object KsqlWebSocketActor {
         webSocketClient ! s"""{"error":{"errorMessage":{"message":"${msg} (${t.getMessage})"}}}"""
     }
 
-    private def processingResponseBody(incompleteBody: String, done: Boolean): Receive = {
+    private def processingJsonResponseBody(incompleteBody: String, done: Boolean): Receive = {
       case KsqlResponse(bodyPart: String) =>
-        val line = incompleteBody + bodyPart
-        Try(Json.parse(line)) match {
-          case Success(_) =>
-            log.debug(s"Sending: ${line}")
-            webSocketClient ! line
-            context.become(
-              processingResponseBody("", !line.startsWith("""{"row":{"columns":["""))
-            )
+        incompleteBody + bodyPart match {
+          case RawFormat(format: String, line: String) =>
+            val controlResponse = s"""{"ksqlWeb":{"msg":"rawContentFollows","format":"${format}"}}"""
+            log.debug(s"Sending: ${controlResponse}")
+            webSocketClient ! controlResponse
 
-          case Failure(_: JsonParseException) =>
-            context.become(
-              processingResponseBody(incompleteBody + bodyPart, done)
-            )
+            val dataResponse: String = Json.stringify(Json.toJson(line))
+            log.debug(s"Sending: ${dataResponse}")
+            webSocketClient ! dataResponse
+            context.become(processingRawResponseBody)
 
-          case Failure(t: Throwable) => throw t
-        }
+          case line: String =>
+            Try(Json.parse(line)) match {
+              case Success(_) =>
+                log.debug(s"Sending: ${line}")
+                webSocketClient ! line
+                context.become(
+                  processingJsonResponseBody("", !line.startsWith("""{"row":{"columns":["""))
+                )
+
+              case Failure(_: JsonParseException) =>
+                context.become(
+                  processingJsonResponseBody(incompleteBody + bodyPart, done)
+                )
+
+              case Failure(t: Throwable) => throw t
+            }
+          }
 
       case KsqlQueryDone =>
         if (!done) {
@@ -151,6 +164,21 @@ object KsqlWebSocketActor {
           log.info("Done processing KSQL service response body.")
           context.stop(self)
         }
+
+      case Stop =>
+        log.debug("Received stop request.")
+        context.stop(self)
+    }
+
+    private val processingRawResponseBody: Receive = {
+      case KsqlResponse(line: String) =>
+        val dataResponse: String = Json.stringify(Json.toJson(line))
+        log.debug(s"Sending: ${dataResponse}")
+        webSocketClient ! dataResponse
+
+      case KsqlQueryDone =>
+        log.info("KSQL service response terminated when more data was expected. Resending request.")
+        sendKsqlServiceRequest()
 
       case Stop =>
         log.debug("Received stop request.")
