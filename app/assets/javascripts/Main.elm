@@ -32,6 +32,12 @@ type alias Flags =
   }
 
 
+type State
+  = Initializing
+  | Idle
+  | Running
+  | Paused
+
 type Column
   = BoolColumn Bool
   | IntColumn Int
@@ -96,6 +102,7 @@ type QueryResult
 
 type alias Model =
   { flags : Flags
+  , state : State
   , query : String
   , result : Maybe QueryResult
   , notifications : List String
@@ -143,7 +150,7 @@ runOnInit search =
 
 init : Flags -> (Model, Cmd Msg)
 init flags =
-  ( Model flags "" Nothing [] []
+  ( Model flags Initializing "" Nothing [] []
   , Cmd.batch
     ( ( case (runOnInit flags.search, queryFromSearch flags.search) of
           (True, Just query) -> [ sendQuery flags query ]
@@ -169,7 +176,8 @@ type Msg
 
 type Response
   -- Meta... responses are KSQL Web specific control messages
-  = MetaRawContentFollows String
+  = MetaConnected
+  | MetaRawContentFollows String
   -- Everything else come from the KSQL REST API
   | StreamedRowResponse Row
   | StreamedTextResponse String
@@ -191,8 +199,14 @@ responseDecoder =
         (Decode.field "msg" Decode.string |> Decode.andThen
           ( \msg ->
             case msg of
-              _ ->
+              "connected" ->
+                Decode.succeed MetaConnected
+
+              "rawContentFollows" ->
                 Decode.map MetaRawContentFollows (Decode.field "format" Decode.string)
+
+              unsupported ->
+                Decode.fail ("Unhandled ksqlWeb message: " ++ unsupported)
           )
         )
 
@@ -515,102 +529,151 @@ update msg model =
       )
     RunQuery ->
       ( { model
-        | result = Nothing
+        | state = Running
+        , result = Nothing
         , notifications = []
         , errorMessages = []
         }
       , sendQuery model.flags model.query
       )
     PauseQuery ->
-      case model.result of
-        Just (StreamingTabularResult rows) ->
-          ( { model | result = Just (StreamingTabularResult (Stream.togglePause rows)) }
-          , if not (Stream.isPaused rows) then Cmd.none
-            else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
-          )
-        Just (StreamingTextualResult lines) ->
-          ( { model | result = Just (StreamingTextualResult (Stream.togglePause lines)) }
-          , if not (Stream.isPaused lines) then Cmd.none
-            else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
-          )
-        _ ->
-          ( model, Cmd.none )
+      let
+        updatedState : State
+        updatedState =
+          case model.state of
+            Running -> Paused
+            Paused -> Running
+            other -> other
+
+        updatedCmd : Cmd Msg
+        updatedCmd =
+          case updatedState of
+            Running -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+            _ -> Cmd.none
+      in
+        case model.result of
+          Just (StreamingTabularResult rows) ->
+            ( { model
+              | state = updatedState
+              , result = Just (StreamingTabularResult (Stream.togglePause rows))
+              }
+            , updatedCmd
+            )
+          Just (StreamingTextualResult lines) ->
+            ( { model
+              | state = updatedState
+              , result = Just (StreamingTextualResult (Stream.togglePause lines))
+              }
+            , updatedCmd
+            )
+          _ -> (model, Cmd.none)
     StopQuery ->
-      ( model
+      ( { model | state = Idle }
       , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
     WebSocketIncoming responseJson ->
-      ( case Decode.decodeString (Decode.list responseDecoder) responseJson of
-          Ok responses ->
-            List.foldr
-              ( \response -> \model ->
-                case response of
-                  StreamedRowResponse row ->
-                    let
-                      rows : Stream Row
-                      rows =
-                        case model.result of
-                          Just (StreamingTabularResult rows) -> rows
-                          _ -> Stream.empty maxDisplayedRows
-                    in
-                      { model | result = Just (StreamingTabularResult (row ::: rows)) }
+      let
+        responsesResult : Result String (List Response)
+        responsesResult =
+          Decode.decodeString (Decode.list responseDecoder) responseJson
+      in
+        ( case responsesResult of
+            Ok responses ->
+              List.foldr
+                ( \response -> \model ->
+                  case response of
+                    MetaConnected ->
+                      case model.state of
+                        Initializing -> { model | state = Idle }
+                        _ -> model
 
-                  TableResponse table ->
-                    { model | result = Just (TabularResult table) }
+                    StreamedRowResponse row ->
+                      let
+                        rows : Stream Row
+                        rows =
+                          case model.result of
+                            Just (StreamingTabularResult rows) -> rows
+                            _ -> Stream.empty maxDisplayedRows
+                      in
+                        { model | result = Just (StreamingTabularResult (row ::: rows)) }
 
-                  NotificationMessageResponse msg ->
-                    { model | notifications = msg :: model.notifications }
+                    TableResponse table ->
+                      { model
+                      | state = Idle
+                      , result = Just (TabularResult table)
+                      }
 
-                  TableAndNotificationMessageResponse table msg ->
-                    { model
-                    | result = Just (TabularResult table)
-                    , notifications = msg :: model.notifications
-                    }
+                    NotificationMessageResponse msg ->
+                      { model
+                      | state = Idle
+                      ,notifications = msg :: model.notifications
+                      }
 
-                  DescribeExtendedResponse extendedSchema ->
-                    { model | result = Just (DescribeExtendedResult extendedSchema) }
+                    TableAndNotificationMessageResponse table msg ->
+                      { model
+                      | state = Idle
+                      , result = Just (TabularResult table)
+                      , notifications = msg :: model.notifications
+                      }
 
-                  ExplainResponse executionPlan ->
-                    { model | result = Just (ExplainResult executionPlan) }
+                    DescribeExtendedResponse extendedSchema ->
+                      { model
+                      | state = Idle
+                      , result = Just (DescribeExtendedResult extendedSchema)
+                      }
 
-                  MetaRawContentFollows format ->
-                    { model
-                    | result = Just (StreamingTextualResult (("Format: " ++ format) ::: Stream.empty maxDisplayedRows))
-                    }
+                    ExplainResponse executionPlan ->
+                      { model
+                      | state = Idle
+                      , result = Just (ExplainResult executionPlan)
+                      }
 
-                  StreamedTextResponse line ->
-                    let
-                      lines : Stream String
-                      lines =
-                        case model.result of
-                          Just (StreamingTextualResult lines) -> lines
-                          _ -> Stream.empty maxDisplayedRows
-                    in
-                      { model | result = Just (StreamingTextualResult (line ::: lines)) }
+                    MetaRawContentFollows format ->
+                      let
+                        lines : Stream String
+                        lines =
+                          case model.result of
+                            Just (StreamingTextualResult lines) -> lines
+                            _ -> ("Format: " ++ format) ::: Stream.empty maxDisplayedRows
+                      in
+                        { model
+                        | result = Just (StreamingTextualResult lines)
+                        }
 
-                  ErrorMessageResponse msg ->
-                    let
-                      newErrorMessages : List String
-                      newErrorMessages =
-                        case String.lines msg of
-                          errorMessage :: _ -> errorMessage :: model.errorMessages
-                          [] -> model.errorMessages
-                    in
-                      { model | errorMessages = newErrorMessages }
-              )
-              model
-              responses
-          Err errorMsg ->
-            { model | errorMessages = [ "Error parsing JSON:\n" ++ responseJson ] }
-      , case model.result of
-          Just (StreamingTabularResult rows) ->
-            if (Stream.isPaused rows) then Cmd.none
-            else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
-          Just (StreamingTextualResult lines) ->
-            if (Stream.isPaused lines) then Cmd.none
-            else Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
-          _ -> Cmd.none
-      )
+                    StreamedTextResponse line ->
+                      let
+                        lines : Stream String
+                        lines =
+                          case model.result of
+                            Just (StreamingTextualResult lines) -> lines
+                            _ -> Stream.empty maxDisplayedRows
+                      in
+                        { model | result = Just (StreamingTextualResult (line ::: lines)) }
+
+                    ErrorMessageResponse msg ->
+                      let
+                        newErrorMessages : List String
+                        newErrorMessages =
+                          case String.lines msg of
+                            errorMessage :: _ -> errorMessage :: model.errorMessages
+                            [] -> model.errorMessages
+                      in
+                        { model
+                        | state = Idle
+                        , errorMessages = newErrorMessages
+                        }
+                )
+                model
+                responses
+            Err errorMsg ->
+              { model | errorMessages = [ "Error parsing JSON (" ++ errorMsg ++ "):\n" ++ responseJson ] }
+        , case (responsesResult, model.state) of
+            (Ok [ MetaConnected ], Running) ->
+              sendQuery model.flags model.query
+            (_, Running) ->
+              Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+            _ -> Cmd.none
+        )
     SendWebSocketKeepAlive _ ->
       ( model
       , WebSocket.send (webSocketUrl model.flags) "{}"
@@ -824,7 +887,13 @@ view model =
               messagesView Nothing [ plan.topology ]
 
             Just (StreamingTextualResult lines) ->
-              messagesView Nothing (List.reverse (Stream.items lines))
+              [ div [ class "messages" ]
+                ( List.foldl
+                  (\line -> \lineViews -> pre [] [ text line ] :: lineViews)
+                  []
+                  (Stream.items lines)
+                )
+              ]
 
             Nothing -> []
         ) ++

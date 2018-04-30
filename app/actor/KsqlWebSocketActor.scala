@@ -203,6 +203,8 @@ class KsqlWebSocketActor(webSocketClient: ActorRef, ws: WSClient, cfg: Configura
     context.actorOf(ResponseBatchingActor.props(webSocketClient), "batching")
   private val idSeq: Iterator[Int] = Iterator.from(0)
 
+  batchingWebSocketClient ! """{"ksqlWeb":{"msg":"connected"}}"""
+
   private val idle: Receive = {
     case "{}" =>
       // Keep alive - No-op

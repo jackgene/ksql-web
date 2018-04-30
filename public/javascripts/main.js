@@ -10158,16 +10158,21 @@ var _connexity$ksql_web$Main$ExecutionPlan = F5(
 	function (a, b, c, d, e) {
 		return {statementText: a, statistics: b, kafkaOutputTopic: c, executionPlan: d, topology: e};
 	});
-var _connexity$ksql_web$Main$Model = F5(
-	function (a, b, c, d, e) {
-		return {flags: a, query: b, result: c, notifications: d, errorMessages: e};
+var _connexity$ksql_web$Main$Model = F6(
+	function (a, b, c, d, e, f) {
+		return {flags: a, state: b, query: c, result: d, notifications: e, errorMessages: f};
 	});
+var _connexity$ksql_web$Main$Paused = {ctor: 'Paused'};
+var _connexity$ksql_web$Main$Running = {ctor: 'Running'};
+var _connexity$ksql_web$Main$Idle = {ctor: 'Idle'};
+var _connexity$ksql_web$Main$Initializing = {ctor: 'Initializing'};
 var _connexity$ksql_web$Main$init = function (flags) {
 	return {
 		ctor: '_Tuple2',
-		_0: A5(
+		_0: A6(
 			_connexity$ksql_web$Main$Model,
 			flags,
+			_connexity$ksql_web$Main$Initializing,
 			'',
 			_elm_lang$core$Maybe$Nothing,
 			{ctor: '[]'},
@@ -10780,11 +10785,36 @@ var _connexity$ksql_web$Main$view = function (model) {
 																				}))))))))
 											};
 										default:
-											return A2(
-												_connexity$ksql_web$Main$messagesView,
-												_elm_lang$core$Maybe$Nothing,
-												_elm_lang$core$List$reverse(
-													_connexity$ksql_web$Stream$items(_p6._0._0)));
+											return {
+												ctor: '::',
+												_0: A2(
+													_elm_lang$html$Html$div,
+													{
+														ctor: '::',
+														_0: _elm_lang$html$Html_Attributes$class('messages'),
+														_1: {ctor: '[]'}
+													},
+													A3(
+														_elm_lang$core$List$foldl,
+														F2(
+															function (line, lineViews) {
+																return {
+																	ctor: '::',
+																	_0: A2(
+																		_elm_lang$html$Html$pre,
+																		{ctor: '[]'},
+																		{
+																			ctor: '::',
+																			_0: _elm_lang$html$Html$text(line),
+																			_1: {ctor: '[]'}
+																		}),
+																	_1: lineViews
+																};
+															}),
+														{ctor: '[]'},
+														_connexity$ksql_web$Stream$items(_p6._0._0))),
+												_1: {ctor: '[]'}
+											};
 									}
 								} else {
 									return {ctor: '[]'};
@@ -10867,6 +10897,7 @@ var _connexity$ksql_web$Main$StreamedRowResponse = function (a) {
 var _connexity$ksql_web$Main$MetaRawContentFollows = function (a) {
 	return {ctor: 'MetaRawContentFollows', _0: a};
 };
+var _connexity$ksql_web$Main$MetaConnected = {ctor: 'MetaConnected'};
 var _connexity$ksql_web$Main$responseDecoder = function () {
 	var errorMessageRespDecoder = function () {
 		var errorMessageObjectDecoder = A2(
@@ -11460,10 +11491,18 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 			_elm_lang$core$Json_Decode$andThen,
 			function (msg) {
 				var _p24 = msg;
-				return A2(
-					_elm_lang$core$Json_Decode$map,
-					_connexity$ksql_web$Main$MetaRawContentFollows,
-					A2(_elm_lang$core$Json_Decode$field, 'format', _elm_lang$core$Json_Decode$string));
+				switch (_p24) {
+					case 'connected':
+						return _elm_lang$core$Json_Decode$succeed(_connexity$ksql_web$Main$MetaConnected);
+					case 'rawContentFollows':
+						return A2(
+							_elm_lang$core$Json_Decode$map,
+							_connexity$ksql_web$Main$MetaRawContentFollows,
+							A2(_elm_lang$core$Json_Decode$field, 'format', _elm_lang$core$Json_Decode$string));
+					default:
+						return _elm_lang$core$Json_Decode$fail(
+							A2(_elm_lang$core$Basics_ops['++'], 'Unhandled ksqlWeb message: ', _p24));
+				}
 			},
 			A2(_elm_lang$core$Json_Decode$field, 'msg', _elm_lang$core$Json_Decode$string)));
 	return _elm_lang$core$Json_Decode$oneOf(
@@ -11537,6 +11576,7 @@ var _connexity$ksql_web$Main$update = F2(
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
 						{
+							state: _connexity$ksql_web$Main$Running,
 							result: _elm_lang$core$Maybe$Nothing,
 							notifications: {ctor: '[]'},
 							errorMessages: {ctor: '[]'}
@@ -11544,56 +11584,109 @@ var _connexity$ksql_web$Main$update = F2(
 					_1: A2(_connexity$ksql_web$Main$sendQuery, model.flags, model.query)
 				};
 			case 'PauseQuery':
-				var _p27 = model.result;
-				if ((_p27.ctor === 'Just') && (_p27._0.ctor === 'StreamingTabularResult')) {
-					var _p28 = _p27._0._0;
-					return {
-						ctor: '_Tuple2',
-						_0: _elm_lang$core$Native_Utils.update(
-							model,
-							{
-								result: _elm_lang$core$Maybe$Just(
-									_connexity$ksql_web$Main$StreamingTabularResult(
-										_connexity$ksql_web$Stream$togglePause(_p28)))
-							}),
-						_1: _connexity$ksql_web$Stream$isPaused(_p28) ? A2(
+				var updatedState = function () {
+					var _p27 = model.state;
+					switch (_p27.ctor) {
+						case 'Running':
+							return _connexity$ksql_web$Main$Paused;
+						case 'Paused':
+							return _connexity$ksql_web$Main$Running;
+						default:
+							return _p27;
+					}
+				}();
+				var updatedCmd = function () {
+					var _p28 = updatedState;
+					if (_p28.ctor === 'Running') {
+						return A2(
 							_elm_lang$core$Task$attempt,
 							_connexity$ksql_web$Main$ConsoleScrolled,
-							_elm_lang$dom$Dom_Scroll$toBottom('output')) : _elm_lang$core$Platform_Cmd$none
-					};
-				} else {
-					return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
-				}
+							_elm_lang$dom$Dom_Scroll$toBottom('output'));
+					} else {
+						return _elm_lang$core$Platform_Cmd$none;
+					}
+				}();
+				var _p29 = model.result;
+				_v15_2:
+				do {
+					if (_p29.ctor === 'Just') {
+						switch (_p29._0.ctor) {
+							case 'StreamingTabularResult':
+								return {
+									ctor: '_Tuple2',
+									_0: _elm_lang$core$Native_Utils.update(
+										model,
+										{
+											state: updatedState,
+											result: _elm_lang$core$Maybe$Just(
+												_connexity$ksql_web$Main$StreamingTabularResult(
+													_connexity$ksql_web$Stream$togglePause(_p29._0._0)))
+										}),
+									_1: updatedCmd
+								};
+							case 'StreamingTextualResult':
+								return {
+									ctor: '_Tuple2',
+									_0: _elm_lang$core$Native_Utils.update(
+										model,
+										{
+											state: updatedState,
+											result: _elm_lang$core$Maybe$Just(
+												_connexity$ksql_web$Main$StreamingTextualResult(
+													_connexity$ksql_web$Stream$togglePause(_p29._0._0)))
+										}),
+									_1: updatedCmd
+								};
+							default:
+								break _v15_2;
+						}
+					} else {
+						break _v15_2;
+					}
+				} while(false);
+				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
 			case 'StopQuery':
 				return {
 					ctor: '_Tuple2',
-					_0: model,
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{state: _connexity$ksql_web$Main$Idle}),
 					_1: A2(
 						_elm_lang$websocket$WebSocket$send,
 						_connexity$ksql_web$Main$webSocketUrl(model.flags),
 						'{\"cmd\":\"stop\"}')
 				};
 			case 'WebSocketIncoming':
-				var _p35 = _p25._0;
+				var _p38 = _p25._0;
+				var responsesResult = A2(
+					_elm_lang$core$Json_Decode$decodeString,
+					_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
+					_p38);
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p29 = A2(
-							_elm_lang$core$Json_Decode$decodeString,
-							_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-							_p35);
-						if (_p29.ctor === 'Ok') {
+						var _p30 = responsesResult;
+						if (_p30.ctor === 'Ok') {
 							return A3(
 								_elm_lang$core$List$foldr,
 								F2(
 									function (response, model) {
-										var _p30 = response;
-										switch (_p30.ctor) {
+										var _p31 = response;
+										switch (_p31.ctor) {
+											case 'MetaConnected':
+												var _p32 = model.state;
+												if (_p32.ctor === 'Initializing') {
+													return _elm_lang$core$Native_Utils.update(
+														model,
+														{state: _connexity$ksql_web$Main$Idle});
+												} else {
+													return model;
+												}
 											case 'StreamedRowResponse':
 												var rows = function () {
-													var _p31 = model.result;
-													if ((_p31.ctor === 'Just') && (_p31._0.ctor === 'StreamingTabularResult')) {
-														return _p31._0._0;
+													var _p33 = model.result;
+													if ((_p33.ctor === 'Just') && (_p33._0.ctor === 'StreamingTabularResult')) {
+														return _p33._0._0;
 													} else {
 														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
 													}
@@ -11603,59 +11696,71 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														result: _elm_lang$core$Maybe$Just(
 															_connexity$ksql_web$Main$StreamingTabularResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p30._0, rows)))
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p31._0, rows)))
 													});
 											case 'TableResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
+														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p30._0))
+															_connexity$ksql_web$Main$TabularResult(_p31._0))
 													});
 											case 'NotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
-														notifications: {ctor: '::', _0: _p30._0, _1: model.notifications}
+														state: _connexity$ksql_web$Main$Idle,
+														notifications: {ctor: '::', _0: _p31._0, _1: model.notifications}
 													});
 											case 'TableAndNotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
+														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p30._0)),
-														notifications: {ctor: '::', _0: _p30._1, _1: model.notifications}
+															_connexity$ksql_web$Main$TabularResult(_p31._0)),
+														notifications: {ctor: '::', _0: _p31._1, _1: model.notifications}
 													});
 											case 'DescribeExtendedResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
+														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$DescribeExtendedResult(_p30._0))
+															_connexity$ksql_web$Main$DescribeExtendedResult(_p31._0))
 													});
 											case 'ExplainResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
+														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$ExplainResult(_p30._0))
+															_connexity$ksql_web$Main$ExplainResult(_p31._0))
 													});
 											case 'MetaRawContentFollows':
+												var lines = function () {
+													var _p34 = model.result;
+													if ((_p34.ctor === 'Just') && (_p34._0.ctor === 'StreamingTextualResult')) {
+														return _p34._0._0;
+													} else {
+														return A2(
+															_connexity$ksql_web$Stream_ops[':::'],
+															A2(_elm_lang$core$Basics_ops['++'], 'Format: ', _p31._0),
+															_connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows));
+													}
+												}();
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$StreamingTextualResult(
-																A2(
-																	_connexity$ksql_web$Stream_ops[':::'],
-																	A2(_elm_lang$core$Basics_ops['++'], 'Format: ', _p30._0),
-																	_connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows))))
+															_connexity$ksql_web$Main$StreamingTextualResult(lines))
 													});
 											case 'StreamedTextResponse':
 												var lines = function () {
-													var _p32 = model.result;
-													if ((_p32.ctor === 'Just') && (_p32._0.ctor === 'StreamingTextualResult')) {
-														return _p32._0._0;
+													var _p35 = model.result;
+													if ((_p35.ctor === 'Just') && (_p35._0.ctor === 'StreamingTextualResult')) {
+														return _p35._0._0;
 													} else {
 														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
 													}
@@ -11665,60 +11770,56 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														result: _elm_lang$core$Maybe$Just(
 															_connexity$ksql_web$Main$StreamingTextualResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p30._0, lines)))
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p31._0, lines)))
 													});
 											default:
 												var newErrorMessages = function () {
-													var _p33 = _elm_lang$core$String$lines(_p30._0);
-													if (_p33.ctor === '::') {
-														return {ctor: '::', _0: _p33._0, _1: model.errorMessages};
+													var _p36 = _elm_lang$core$String$lines(_p31._0);
+													if (_p36.ctor === '::') {
+														return {ctor: '::', _0: _p36._0, _1: model.errorMessages};
 													} else {
 														return model.errorMessages;
 													}
 												}();
 												return _elm_lang$core$Native_Utils.update(
 													model,
-													{errorMessages: newErrorMessages});
+													{state: _connexity$ksql_web$Main$Idle, errorMessages: newErrorMessages});
 										}
 									}),
 								model,
-								_p29._0);
+								_p30._0);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
 								{
 									errorMessages: {
 										ctor: '::',
-										_0: A2(_elm_lang$core$Basics_ops['++'], 'Error parsing JSON:\n', _p35),
+										_0: A2(
+											_elm_lang$core$Basics_ops['++'],
+											'Error parsing JSON (',
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												_p30._0,
+												A2(_elm_lang$core$Basics_ops['++'], '):\n', _p38))),
 										_1: {ctor: '[]'}
 									}
 								});
 						}
 					}(),
 					_1: function () {
-						var _p34 = model.result;
-						_v19_2:
-						do {
-							if (_p34.ctor === 'Just') {
-								switch (_p34._0.ctor) {
-									case 'StreamingTabularResult':
-										return _connexity$ksql_web$Stream$isPaused(_p34._0._0) ? _elm_lang$core$Platform_Cmd$none : A2(
-											_elm_lang$core$Task$attempt,
-											_connexity$ksql_web$Main$ConsoleScrolled,
-											_elm_lang$dom$Dom_Scroll$toBottom('output'));
-									case 'StreamingTextualResult':
-										return _connexity$ksql_web$Stream$isPaused(_p34._0._0) ? _elm_lang$core$Platform_Cmd$none : A2(
-											_elm_lang$core$Task$attempt,
-											_connexity$ksql_web$Main$ConsoleScrolled,
-											_elm_lang$dom$Dom_Scroll$toBottom('output'));
-									default:
-										break _v19_2;
-								}
+						var _p37 = {ctor: '_Tuple2', _0: responsesResult, _1: model.state};
+						if ((_p37.ctor === '_Tuple2') && (_p37._1.ctor === 'Running')) {
+							if ((((_p37._0.ctor === 'Ok') && (_p37._0._0.ctor === '::')) && (_p37._0._0._0.ctor === 'MetaConnected')) && (_p37._0._0._1.ctor === '[]')) {
+								return A2(_connexity$ksql_web$Main$sendQuery, model.flags, model.query);
 							} else {
-								break _v19_2;
+								return A2(
+									_elm_lang$core$Task$attempt,
+									_connexity$ksql_web$Main$ConsoleScrolled,
+									_elm_lang$dom$Dom_Scroll$toBottom('output'));
 							}
-						} while(false);
-						return _elm_lang$core$Platform_Cmd$none;
+						} else {
+							return _elm_lang$core$Platform_Cmd$none;
+						}
 					}()
 				};
 			case 'SendWebSocketKeepAlive':
