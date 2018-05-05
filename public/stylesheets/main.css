@@ -73,7 +73,27 @@ pre {
   top: 24px;
   left: 0;
   right: 0;
-  border-bottom: 1px solid #aaa;
+}
+
+#progress {
+  position: relative;
+  bottom: 0;
+  height: 1px;
+  width: 100%;
+  overflow: hidden;
+}
+
+#progress #bar {
+  height: 100%;
+  background: #aaa;
+  transition: width 200ms ease, background-color 1s linear;
+}
+
+#progress #bar .gap {
+  position: absolute;
+  height: 100%;
+  background: #fff;
+  transition: all 200ms linear;
 }
 
 #output {

@@ -1,16 +1,16 @@
 port module Main exposing (..)
 
-import Dom
 import Dom.Scroll
 import Html exposing (..)
-import Html.Attributes exposing (autofocus, class, href, id, target, title)
+import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Random
 import Stream exposing (Stream, (:::))
 import Task
-import Time exposing (Time, second)
+import Time exposing (Time, millisecond, second)
 import WebSocket
 
 
@@ -23,6 +23,18 @@ port codeMirrorKeyMapPauseQuerySub : (() -> msg) -> Sub msg
 port codeMirrorKeyMapStopQuerySub : (() -> msg) -> Sub msg
 
 
+maxDisplayedRows : Int
+maxDisplayedRows = 5000
+
+
+progressMarkerLife : Time
+progressMarkerLife = 1.5 * second
+
+
+progressTickPeriod : Time
+progressTickPeriod = 200 * millisecond
+
+
 -- Model
 type alias Flags =
   { secure : Bool
@@ -32,11 +44,24 @@ type alias Flags =
   }
 
 
+type alias DeterminateProgress =
+  { duration : Time
+  , currentTime : Time
+  }
+
+
+type alias IndeterminateProgress =
+  { markerDurations : List Time
+  , currentTime : Time
+  }
+
+
 type State
-  = Initializing
+  = Initializing DeterminateProgress
   | Idle
-  | Running
-  | Paused
+  | Running DeterminateProgress
+  | Streaming Bool IndeterminateProgress
+
 
 type Column
   = BoolColumn Bool
@@ -150,28 +175,35 @@ runOnInit search =
 
 init : Flags -> (Model, Cmd Msg)
 init flags =
-  ( Model flags Initializing "" Nothing [] []
+  ( Model flags Idle "" Nothing [] []
   , Cmd.batch
-    ( ( case (runOnInit flags.search, queryFromSearch flags.search) of
-          (True, Just query) -> [ sendQuery flags query ]
-          _ -> []
-      ) ++
-      [ codeMirrorDocSetValueCmd (Maybe.withDefault flags.initialQuery (queryFromSearch flags.search))
-      , codeMirrorFromTextAreaCmd "source"
-      ]
-    )
+    [ Task.perform
+        ( PerformInTimedState
+          ( case (runOnInit flags.search, queryFromSearch flags.search) of
+              (True, Just query) -> sendQuery flags query
+              _ -> Cmd.none
+          )
+          << Initializing << DeterminateProgress 0
+        )
+        Time.now
+    , codeMirrorDocSetValueCmd (Maybe.withDefault flags.initialQuery (queryFromSearch flags.search))
+    , codeMirrorFromTextAreaCmd "source"
+    ]
   )
 
 
 -- Update
 type Msg
-  = ChangeQuery String
+  = PerformInTimedState (Cmd Msg) State
+  | ChangeQuery String
   | RunQuery
   | PauseQuery
   | StopQuery
   | WebSocketIncoming String
   | SendWebSocketKeepAlive Time
-  | ConsoleScrolled (Result Dom.Error ())
+  | ProgressTick Time
+  | ProgressAddRandomMarker Int
+  | NoOp
 
 
 type Response
@@ -516,39 +548,50 @@ responseDecoder =
       ]
 
 
-maxDisplayedRows : Int
-maxDisplayedRows = 5000
+scrollToBottom : Cmd Msg
+scrollToBottom =
+  Task.attempt (always NoOp) (Dom.Scroll.toBottom "output")
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
+    PerformInTimedState cmd state ->
+      ( { model | state = state }
+      , cmd
+      )
+
     ChangeQuery query ->
       ( { model | query = query }
       , localStorageSetItemCmd ("query", query)
       )
+
     RunQuery ->
       ( { model
-        | state = Running
-        , result = Nothing
+        | result = Nothing
         , notifications = []
         , errorMessages = []
         }
-      , sendQuery model.flags model.query
+      , Task.perform
+        ( PerformInTimedState
+          (sendQuery model.flags model.query)
+          << Running << DeterminateProgress 0
+        )
+        Time.now
       )
+
     PauseQuery ->
       let
         updatedState : State
         updatedState =
           case model.state of
-            Running -> Paused
-            Paused -> Running
+            Streaming live progress -> Streaming (not live) progress
             other -> other
 
         updatedCmd : Cmd Msg
         updatedCmd =
           case updatedState of
-            Running -> Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+            Streaming True _ -> scrollToBottom
             _ -> Cmd.none
       in
         case model.result of
@@ -567,10 +610,12 @@ update msg model =
             , updatedCmd
             )
           _ -> (model, Cmd.none)
+
     StopQuery ->
       ( { model | state = Idle }
       , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
+
     WebSocketIncoming responseJson ->
       let
         responsesResult : Result String (List Response)
@@ -584,7 +629,7 @@ update msg model =
                   case response of
                     MetaConnected ->
                       case model.state of
-                        Initializing -> { model | state = Idle }
+                        Initializing _ -> { model | state = Idle }
                         _ -> model
 
                     StreamedRowResponse row ->
@@ -594,8 +639,17 @@ update msg model =
                           case model.result of
                             Just (StreamingTabularResult rows) -> rows
                             _ -> Stream.empty maxDisplayedRows
+
+                        updatedState : State
+                        updatedState =
+                          case model.state of
+                            Running progress -> Streaming True (IndeterminateProgress [ 0 ] progress.currentTime)
+                            other -> other
                       in
-                        { model | result = Just (StreamingTabularResult (row ::: rows)) }
+                        { model
+                        | state = updatedState
+                        , result = Just (StreamingTabularResult (row ::: rows))
+                        }
 
                     TableResponse table ->
                       { model
@@ -647,8 +701,17 @@ update msg model =
                           case model.result of
                             Just (StreamingTextualResult lines) -> lines
                             _ -> Stream.empty maxDisplayedRows
+
+                        updatedState : State
+                        updatedState =
+                          case model.state of
+                            Running progress -> Streaming True (IndeterminateProgress [ 0 ] progress.currentTime)
+                            other -> other
                       in
-                        { model | result = Just (StreamingTextualResult (line ::: lines)) }
+                        { model
+                        | state = updatedState
+                        , result = Just (StreamingTextualResult (line ::: lines))
+                        }
 
                     ErrorMessageResponse msg ->
                       let
@@ -668,18 +731,92 @@ update msg model =
             Err errorMsg ->
               { model | errorMessages = [ "Error parsing JSON (" ++ errorMsg ++ "):\n" ++ responseJson ] }
         , case (responsesResult, model.state) of
-            (Ok [ MetaConnected ], Running) ->
+            (Ok [ MetaConnected ], Streaming _ _) ->
               sendQuery model.flags model.query
-            (_, Running) ->
-              Task.attempt ConsoleScrolled (Dom.Scroll.toBottom "output")
+            (_, Streaming True _) -> scrollToBottom
             _ -> Cmd.none
         )
+
     SendWebSocketKeepAlive _ ->
       ( model
       , WebSocket.send (webSocketUrl model.flags) "{}"
       )
-    ConsoleScrolled _ ->
-      ( model, Cmd.none ) -- No-op
+
+    ProgressTick time ->
+      ( case model.state of
+          Initializing progress ->
+            let
+              updatedProgress : DeterminateProgress
+              updatedProgress =
+                { progress
+                | duration = progress.duration + time - progress.currentTime
+                , currentTime = time
+                }
+            in
+              { model | state = Initializing updatedProgress }
+          Running progress ->
+            let
+              updatedProgress : DeterminateProgress
+              updatedProgress =
+                { progress
+                | duration = progress.duration + time - progress.currentTime
+                , currentTime = time
+                }
+            in
+              { model | state = Running updatedProgress }
+          Streaming live progress ->
+            let
+              updatedProgress : IndeterminateProgress
+              updatedProgress =
+                let
+                  duration : Time
+                  duration = time - progress.currentTime
+
+                  markerDurations : List Time
+                  markerDurations =
+                    if not live then progress.markerDurations
+                    else List.map ((+) duration) progress.markerDurations
+                in
+                  { progress
+                  | markerDurations = markerDurations
+                  , currentTime = time
+                  }
+            in
+              { model | state = Streaming live updatedProgress }
+          _ -> model
+      , case model.state of
+          Streaming True progress ->
+            Random.generate ProgressAddRandomMarker (Random.int 0 15)
+          _ -> Cmd.none
+      )
+
+    ProgressAddRandomMarker numMarkers ->
+      case model.state of
+        Streaming True { markerDurations, currentTime } ->
+          let
+            newMarkerDurations : List Time
+            newMarkerDurations =
+              case numMarkers of
+                1 -> [ 0 ]
+                2 -> [ 66 ]
+                3 -> [ 0, 66 ]
+                4 -> [ 133 ]
+                5 -> [ 0, 133 ]
+                6 -> [ 66, 133 ]
+                7 -> [ 0, 66, 133 ]
+                _ -> []
+
+            updatedMarkerDurations : List Time
+            updatedMarkerDurations =
+              if List.all (\t -> t > progressMarkerLife) markerDurations then newMarkerDurations
+              else newMarkerDurations ++ markerDurations
+          in
+            ( { model | state = Streaming True (IndeterminateProgress updatedMarkerDurations currentTime) }
+            , Cmd.none
+            )
+        _ -> (model, Cmd.none)
+
+    NoOp -> (model, Cmd.none) -- No-op
 
 
 -- Subscription
@@ -692,10 +829,20 @@ subscriptions model =
     , codeMirrorKeyMapStopQuerySub (always StopQuery)
     , Time.every (60 * second) SendWebSocketKeepAlive
     , WebSocket.listen (webSocketUrl model.flags) WebSocketIncoming
+    , case model.state of
+        Idle -> Sub.none
+        _ -> Time.every progressTickPeriod ProgressTick
     ]
 
 
 -- View
+progressBarView : Float -> Html Msg
+progressBarView completion =
+  div
+    [ id "bar", style [ ("width", (toString (completion * 100) ++ "%")) ] ]
+    []
+
+
 rowKeyType : List Row -> Maybe String
 rowKeyType schema =
   List.head
@@ -806,7 +953,36 @@ view model =
         ]
       )
     , div [ id "input" ]
-      [ textarea [ id "source", autofocus True ] [ text model.query ] ]
+      [ div [] [ textarea [ id "source", autofocus True ] [ text model.query ] ]
+      , div [ id "progress" ]
+        [ case model.state of
+            Initializing progress -> progressBarView ((progress.duration / (1 * second)) ^ 2)
+            Running progress -> progressBarView ((progress.duration / (600 * second)) ^ 0.02)
+            Streaming live progress ->
+              let
+                extraBarStyles : List (String, String)
+                extraBarStyles =
+                  if live || (floor progress.currentTime) // (floor second) % 2 == 0 then []
+                  else [ ("background", "#fff") ]
+              in
+                div [ id "bar", style (("width", "100%") :: extraBarStyles ) ]
+                ( List.foldl
+                  ( \marker -> \gapViews ->
+                    ( div
+                      [ class "gap"
+                      , style
+                        [ ("left", (toString ((marker / progressMarkerLife) ^ 2 * 100)) ++ "%")
+                        , ("width", (toString (marker / 50 + 1)) ++ "px") ]
+                      ]
+                      []
+                    ) :: gapViews
+                  )
+                  []
+                  progress.markerDurations
+                )
+            Idle -> progressBarView 1.0
+        ]
+      ]
     , div [ id "output" ]
       ( ( case model.result of
             Just (StreamingTabularResult rows) ->
