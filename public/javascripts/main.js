@@ -10898,7 +10898,8 @@ var _connexity$ksql_web$Main$view = function (model) {
 																								_0: 'width',
 																								_1: A2(
 																									_elm_lang$core$Basics_ops['++'],
-																									_elm_lang$core$Basics$toString((marker / 50) + 1),
+																									_elm_lang$core$Basics$toString(
+																										Math.pow(marker / _connexity$ksql_web$Main$progressMarkerLife, 2) * 40),
 																									'px')
 																							},
 																							_1: {ctor: '[]'}

@@ -972,7 +972,7 @@ view model =
                       [ class "gap"
                       , style
                         [ ("left", (toString ((marker / progressMarkerLife) ^ 2 * 100)) ++ "%")
-                        , ("width", (toString (marker / 50 + 1)) ++ "px") ]
+                        , ("width", (toString ((marker / progressMarkerLife) ^ 2 * 40)) ++ "px") ]
                       ]
                       []
                     ) :: gapViews
