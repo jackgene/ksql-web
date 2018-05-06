@@ -25,6 +25,9 @@
       }
     );
     let cm;
+    if (window.location.search.length > 0) {
+      window.history.pushState("", "", window.location.pathname);
+    }
 
     app.ports.localStorageSetQueryHistoryCmd.subscribe(
       function(queryHistory) {
