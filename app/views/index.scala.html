@@ -39,12 +39,6 @@
                 "Cmd-Enter": function() {
                   app.ports.codeMirrorKeyMapRunQuerySub.send(null);
                 },
-                "Ctrl-P": function() {
-                  app.ports.codeMirrorKeyMapPauseQuerySub.send(null);
-                },
-                "Ctrl-C": function() {
-                  app.ports.codeMirrorKeyMapStopQuerySub.send(null);
-                }
               }
             }
           );
@@ -59,7 +53,7 @@
       app.ports.codeMirrorDocSetValueCmd.subscribe(
         function(value) {
           cm.getDoc().setValue(value);
-          cm.setCursor(cm.lineCount(), 0);
+          cm.getDoc().setCursor(cm.lineCount(), 0);
         }
       );
   </script>

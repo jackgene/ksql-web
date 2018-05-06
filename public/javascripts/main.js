@@ -135,189 +135,20 @@ function A9(fun, a, b, c, d, e, f, g, h, i)
     : fun(a)(b)(c)(d)(e)(f)(g)(h)(i);
 }
 
-var _elm_lang$dom$Native_Dom = function() {
+//import Native.Utils //
 
-var fakeNode = {
-	addEventListener: function() {},
-	removeEventListener: function() {}
-};
-
-var onDocument = on(typeof document !== 'undefined' ? document : fakeNode);
-var onWindow = on(typeof window !== 'undefined' ? window : fakeNode);
-
-function on(node)
-{
-	return function(eventName, decoder, toTask)
-	{
-		return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
-
-			function performTask(event)
-			{
-				var result = A2(_elm_lang$core$Json_Decode$decodeValue, decoder, event);
-				if (result.ctor === 'Ok')
-				{
-					_elm_lang$core$Native_Scheduler.rawSpawn(toTask(result._0));
-				}
-			}
-
-			node.addEventListener(eventName, performTask);
-
-			return function()
-			{
-				node.removeEventListener(eventName, performTask);
-			};
-		});
-	};
-}
-
-var rAF = typeof requestAnimationFrame !== 'undefined'
-	? requestAnimationFrame
-	: function(callback) { callback(); };
-
-function withNode(id, doStuff)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		rAF(function()
-		{
-			var node = document.getElementById(id);
-			if (node === null)
-			{
-				callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NotFound', _0: id }));
-				return;
-			}
-			callback(_elm_lang$core$Native_Scheduler.succeed(doStuff(node)));
-		});
-	});
-}
-
-
-// FOCUS
-
-function focus(id)
-{
-	return withNode(id, function(node) {
-		node.focus();
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function blur(id)
-{
-	return withNode(id, function(node) {
-		node.blur();
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-
-// SCROLLING
-
-function getScrollTop(id)
-{
-	return withNode(id, function(node) {
-		return node.scrollTop;
-	});
-}
-
-function setScrollTop(id, desiredScrollTop)
-{
-	return withNode(id, function(node) {
-		node.scrollTop = desiredScrollTop;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function toBottom(id)
-{
-	return withNode(id, function(node) {
-		node.scrollTop = node.scrollHeight;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function getScrollLeft(id)
-{
-	return withNode(id, function(node) {
-		return node.scrollLeft;
-	});
-}
-
-function setScrollLeft(id, desiredScrollLeft)
-{
-	return withNode(id, function(node) {
-		node.scrollLeft = desiredScrollLeft;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function toRight(id)
-{
-	return withNode(id, function(node) {
-		node.scrollLeft = node.scrollWidth;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-
-// SIZE
-
-function width(options, id)
-{
-	return withNode(id, function(node) {
-		switch (options.ctor)
-		{
-			case 'Content':
-				return node.scrollWidth;
-			case 'VisibleContent':
-				return node.clientWidth;
-			case 'VisibleContentWithBorders':
-				return node.offsetWidth;
-			case 'VisibleContentWithBordersAndMargins':
-				var rect = node.getBoundingClientRect();
-				return rect.right - rect.left;
-		}
-	});
-}
-
-function height(options, id)
-{
-	return withNode(id, function(node) {
-		switch (options.ctor)
-		{
-			case 'Content':
-				return node.scrollHeight;
-			case 'VisibleContent':
-				return node.clientHeight;
-			case 'VisibleContentWithBorders':
-				return node.offsetHeight;
-			case 'VisibleContentWithBordersAndMargins':
-				var rect = node.getBoundingClientRect();
-				return rect.bottom - rect.top;
-		}
-	});
-}
+var _elm_lang$core$Native_Char = function() {
 
 return {
-	onDocument: F3(onDocument),
-	onWindow: F3(onWindow),
-
-	focus: focus,
-	blur: blur,
-
-	getScrollTop: getScrollTop,
-	setScrollTop: F2(setScrollTop),
-	getScrollLeft: getScrollLeft,
-	setScrollLeft: F2(setScrollLeft),
-	toBottom: toBottom,
-	toRight: toRight,
-
-	height: F2(height),
-	width: F2(width)
+	fromCode: function(c) { return _elm_lang$core$Native_Utils.chr(String.fromCharCode(c)); },
+	toCode: function(c) { return c.charCodeAt(0); },
+	toUpper: function(c) { return _elm_lang$core$Native_Utils.chr(c.toUpperCase()); },
+	toLower: function(c) { return _elm_lang$core$Native_Utils.chr(c.toLowerCase()); },
+	toLocaleUpper: function(c) { return _elm_lang$core$Native_Utils.chr(c.toLocaleUpperCase()); },
+	toLocaleLower: function(c) { return _elm_lang$core$Native_Utils.chr(c.toLocaleLowerCase()); }
 };
 
 }();
-
 //import Native.Utils //
 
 var _elm_lang$core$Native_Basics = function() {
@@ -1072,6 +903,232 @@ var _elm_lang$core$Basics$LT = {ctor: 'LT'};
 var _elm_lang$core$Basics$JustOneMore = function (a) {
 	return {ctor: 'JustOneMore', _0: a};
 };
+
+var _elm_lang$core$Char$fromCode = _elm_lang$core$Native_Char.fromCode;
+var _elm_lang$core$Char$toCode = _elm_lang$core$Native_Char.toCode;
+var _elm_lang$core$Char$toLocaleLower = _elm_lang$core$Native_Char.toLocaleLower;
+var _elm_lang$core$Char$toLocaleUpper = _elm_lang$core$Native_Char.toLocaleUpper;
+var _elm_lang$core$Char$toLower = _elm_lang$core$Native_Char.toLower;
+var _elm_lang$core$Char$toUpper = _elm_lang$core$Native_Char.toUpper;
+var _elm_lang$core$Char$isBetween = F3(
+	function (low, high, $char) {
+		var code = _elm_lang$core$Char$toCode($char);
+		return (_elm_lang$core$Native_Utils.cmp(
+			code,
+			_elm_lang$core$Char$toCode(low)) > -1) && (_elm_lang$core$Native_Utils.cmp(
+			code,
+			_elm_lang$core$Char$toCode(high)) < 1);
+	});
+var _elm_lang$core$Char$isUpper = A2(
+	_elm_lang$core$Char$isBetween,
+	_elm_lang$core$Native_Utils.chr('A'),
+	_elm_lang$core$Native_Utils.chr('Z'));
+var _elm_lang$core$Char$isLower = A2(
+	_elm_lang$core$Char$isBetween,
+	_elm_lang$core$Native_Utils.chr('a'),
+	_elm_lang$core$Native_Utils.chr('z'));
+var _elm_lang$core$Char$isDigit = A2(
+	_elm_lang$core$Char$isBetween,
+	_elm_lang$core$Native_Utils.chr('0'),
+	_elm_lang$core$Native_Utils.chr('9'));
+var _elm_lang$core$Char$isOctDigit = A2(
+	_elm_lang$core$Char$isBetween,
+	_elm_lang$core$Native_Utils.chr('0'),
+	_elm_lang$core$Native_Utils.chr('7'));
+var _elm_lang$core$Char$isHexDigit = function ($char) {
+	return _elm_lang$core$Char$isDigit($char) || (A3(
+		_elm_lang$core$Char$isBetween,
+		_elm_lang$core$Native_Utils.chr('a'),
+		_elm_lang$core$Native_Utils.chr('f'),
+		$char) || A3(
+		_elm_lang$core$Char$isBetween,
+		_elm_lang$core$Native_Utils.chr('A'),
+		_elm_lang$core$Native_Utils.chr('F'),
+		$char));
+};
+
+var _elm_lang$dom$Native_Dom = function() {
+
+var fakeNode = {
+	addEventListener: function() {},
+	removeEventListener: function() {}
+};
+
+var onDocument = on(typeof document !== 'undefined' ? document : fakeNode);
+var onWindow = on(typeof window !== 'undefined' ? window : fakeNode);
+
+function on(node)
+{
+	return function(eventName, decoder, toTask)
+	{
+		return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+
+			function performTask(event)
+			{
+				var result = A2(_elm_lang$core$Json_Decode$decodeValue, decoder, event);
+				if (result.ctor === 'Ok')
+				{
+					_elm_lang$core$Native_Scheduler.rawSpawn(toTask(result._0));
+				}
+			}
+
+			node.addEventListener(eventName, performTask);
+
+			return function()
+			{
+				node.removeEventListener(eventName, performTask);
+			};
+		});
+	};
+}
+
+var rAF = typeof requestAnimationFrame !== 'undefined'
+	? requestAnimationFrame
+	: function(callback) { callback(); };
+
+function withNode(id, doStuff)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		rAF(function()
+		{
+			var node = document.getElementById(id);
+			if (node === null)
+			{
+				callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NotFound', _0: id }));
+				return;
+			}
+			callback(_elm_lang$core$Native_Scheduler.succeed(doStuff(node)));
+		});
+	});
+}
+
+
+// FOCUS
+
+function focus(id)
+{
+	return withNode(id, function(node) {
+		node.focus();
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function blur(id)
+{
+	return withNode(id, function(node) {
+		node.blur();
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+
+// SCROLLING
+
+function getScrollTop(id)
+{
+	return withNode(id, function(node) {
+		return node.scrollTop;
+	});
+}
+
+function setScrollTop(id, desiredScrollTop)
+{
+	return withNode(id, function(node) {
+		node.scrollTop = desiredScrollTop;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function toBottom(id)
+{
+	return withNode(id, function(node) {
+		node.scrollTop = node.scrollHeight;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function getScrollLeft(id)
+{
+	return withNode(id, function(node) {
+		return node.scrollLeft;
+	});
+}
+
+function setScrollLeft(id, desiredScrollLeft)
+{
+	return withNode(id, function(node) {
+		node.scrollLeft = desiredScrollLeft;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function toRight(id)
+{
+	return withNode(id, function(node) {
+		node.scrollLeft = node.scrollWidth;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+
+// SIZE
+
+function width(options, id)
+{
+	return withNode(id, function(node) {
+		switch (options.ctor)
+		{
+			case 'Content':
+				return node.scrollWidth;
+			case 'VisibleContent':
+				return node.clientWidth;
+			case 'VisibleContentWithBorders':
+				return node.offsetWidth;
+			case 'VisibleContentWithBordersAndMargins':
+				var rect = node.getBoundingClientRect();
+				return rect.right - rect.left;
+		}
+	});
+}
+
+function height(options, id)
+{
+	return withNode(id, function(node) {
+		switch (options.ctor)
+		{
+			case 'Content':
+				return node.scrollHeight;
+			case 'VisibleContent':
+				return node.clientHeight;
+			case 'VisibleContentWithBorders':
+				return node.offsetHeight;
+			case 'VisibleContentWithBordersAndMargins':
+				var rect = node.getBoundingClientRect();
+				return rect.bottom - rect.top;
+		}
+	});
+}
+
+return {
+	onDocument: F3(onDocument),
+	onWindow: F3(onWindow),
+
+	focus: focus,
+	blur: blur,
+
+	getScrollTop: getScrollTop,
+	setScrollTop: F2(setScrollTop),
+	getScrollLeft: getScrollLeft,
+	setScrollLeft: F2(setScrollLeft),
+	toBottom: toBottom,
+	toRight: toRight,
+
+	height: F2(height),
+	width: F2(width)
+};
+
+}();
 
 var _elm_lang$core$Maybe$withDefault = F2(
 	function ($default, maybe) {
@@ -3419,63 +3476,6 @@ return {
 };
 
 }();
-
-//import Native.Utils //
-
-var _elm_lang$core$Native_Char = function() {
-
-return {
-	fromCode: function(c) { return _elm_lang$core$Native_Utils.chr(String.fromCharCode(c)); },
-	toCode: function(c) { return c.charCodeAt(0); },
-	toUpper: function(c) { return _elm_lang$core$Native_Utils.chr(c.toUpperCase()); },
-	toLower: function(c) { return _elm_lang$core$Native_Utils.chr(c.toLowerCase()); },
-	toLocaleUpper: function(c) { return _elm_lang$core$Native_Utils.chr(c.toLocaleUpperCase()); },
-	toLocaleLower: function(c) { return _elm_lang$core$Native_Utils.chr(c.toLocaleLowerCase()); }
-};
-
-}();
-var _elm_lang$core$Char$fromCode = _elm_lang$core$Native_Char.fromCode;
-var _elm_lang$core$Char$toCode = _elm_lang$core$Native_Char.toCode;
-var _elm_lang$core$Char$toLocaleLower = _elm_lang$core$Native_Char.toLocaleLower;
-var _elm_lang$core$Char$toLocaleUpper = _elm_lang$core$Native_Char.toLocaleUpper;
-var _elm_lang$core$Char$toLower = _elm_lang$core$Native_Char.toLower;
-var _elm_lang$core$Char$toUpper = _elm_lang$core$Native_Char.toUpper;
-var _elm_lang$core$Char$isBetween = F3(
-	function (low, high, $char) {
-		var code = _elm_lang$core$Char$toCode($char);
-		return (_elm_lang$core$Native_Utils.cmp(
-			code,
-			_elm_lang$core$Char$toCode(low)) > -1) && (_elm_lang$core$Native_Utils.cmp(
-			code,
-			_elm_lang$core$Char$toCode(high)) < 1);
-	});
-var _elm_lang$core$Char$isUpper = A2(
-	_elm_lang$core$Char$isBetween,
-	_elm_lang$core$Native_Utils.chr('A'),
-	_elm_lang$core$Native_Utils.chr('Z'));
-var _elm_lang$core$Char$isLower = A2(
-	_elm_lang$core$Char$isBetween,
-	_elm_lang$core$Native_Utils.chr('a'),
-	_elm_lang$core$Native_Utils.chr('z'));
-var _elm_lang$core$Char$isDigit = A2(
-	_elm_lang$core$Char$isBetween,
-	_elm_lang$core$Native_Utils.chr('0'),
-	_elm_lang$core$Native_Utils.chr('9'));
-var _elm_lang$core$Char$isOctDigit = A2(
-	_elm_lang$core$Char$isBetween,
-	_elm_lang$core$Native_Utils.chr('0'),
-	_elm_lang$core$Native_Utils.chr('7'));
-var _elm_lang$core$Char$isHexDigit = function ($char) {
-	return _elm_lang$core$Char$isDigit($char) || (A3(
-		_elm_lang$core$Char$isBetween,
-		_elm_lang$core$Native_Utils.chr('a'),
-		_elm_lang$core$Native_Utils.chr('f'),
-		$char) || A3(
-		_elm_lang$core$Char$isBetween,
-		_elm_lang$core$Native_Utils.chr('A'),
-		_elm_lang$core$Native_Utils.chr('F'),
-		$char));
-};
 
 var _elm_lang$core$String$fromList = _elm_lang$core$Native_String.fromList;
 var _elm_lang$core$String$toList = _elm_lang$core$Native_String.toList;
@@ -9242,6 +9242,182 @@ var _elm_lang$http$Http$StringPart = F2(
 	});
 var _elm_lang$http$Http$stringPart = _elm_lang$http$Http$StringPart;
 
+var _elm_lang$dom$Dom_LowLevel$onWindow = _elm_lang$dom$Native_Dom.onWindow;
+var _elm_lang$dom$Dom_LowLevel$onDocument = _elm_lang$dom$Native_Dom.onDocument;
+
+var _elm_lang$core$Process$kill = _elm_lang$core$Native_Scheduler.kill;
+var _elm_lang$core$Process$sleep = _elm_lang$core$Native_Scheduler.sleep;
+var _elm_lang$core$Process$spawn = _elm_lang$core$Native_Scheduler.spawn;
+
+var _elm_lang$keyboard$Keyboard$onSelfMsg = F3(
+	function (router, _p0, state) {
+		var _p1 = _p0;
+		var _p2 = A2(_elm_lang$core$Dict$get, _p1.category, state);
+		if (_p2.ctor === 'Nothing') {
+			return _elm_lang$core$Task$succeed(state);
+		} else {
+			var send = function (tagger) {
+				return A2(
+					_elm_lang$core$Platform$sendToApp,
+					router,
+					tagger(_p1.keyCode));
+			};
+			return A2(
+				_elm_lang$core$Task$andThen,
+				function (_p3) {
+					return _elm_lang$core$Task$succeed(state);
+				},
+				_elm_lang$core$Task$sequence(
+					A2(_elm_lang$core$List$map, send, _p2._0.taggers)));
+		}
+	});
+var _elm_lang$keyboard$Keyboard_ops = _elm_lang$keyboard$Keyboard_ops || {};
+_elm_lang$keyboard$Keyboard_ops['&>'] = F2(
+	function (task1, task2) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (_p4) {
+				return task2;
+			},
+			task1);
+	});
+var _elm_lang$keyboard$Keyboard$init = _elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty);
+var _elm_lang$keyboard$Keyboard$categorizeHelpHelp = F2(
+	function (value, maybeValues) {
+		var _p5 = maybeValues;
+		if (_p5.ctor === 'Nothing') {
+			return _elm_lang$core$Maybe$Just(
+				{
+					ctor: '::',
+					_0: value,
+					_1: {ctor: '[]'}
+				});
+		} else {
+			return _elm_lang$core$Maybe$Just(
+				{ctor: '::', _0: value, _1: _p5._0});
+		}
+	});
+var _elm_lang$keyboard$Keyboard$categorizeHelp = F2(
+	function (subs, subDict) {
+		categorizeHelp:
+		while (true) {
+			var _p6 = subs;
+			if (_p6.ctor === '[]') {
+				return subDict;
+			} else {
+				var _v4 = _p6._1,
+					_v5 = A3(
+					_elm_lang$core$Dict$update,
+					_p6._0._0,
+					_elm_lang$keyboard$Keyboard$categorizeHelpHelp(_p6._0._1),
+					subDict);
+				subs = _v4;
+				subDict = _v5;
+				continue categorizeHelp;
+			}
+		}
+	});
+var _elm_lang$keyboard$Keyboard$categorize = function (subs) {
+	return A2(_elm_lang$keyboard$Keyboard$categorizeHelp, subs, _elm_lang$core$Dict$empty);
+};
+var _elm_lang$keyboard$Keyboard$keyCode = A2(_elm_lang$core$Json_Decode$field, 'keyCode', _elm_lang$core$Json_Decode$int);
+var _elm_lang$keyboard$Keyboard$subscription = _elm_lang$core$Native_Platform.leaf('Keyboard');
+var _elm_lang$keyboard$Keyboard$Watcher = F2(
+	function (a, b) {
+		return {taggers: a, pid: b};
+	});
+var _elm_lang$keyboard$Keyboard$Msg = F2(
+	function (a, b) {
+		return {category: a, keyCode: b};
+	});
+var _elm_lang$keyboard$Keyboard$onEffects = F3(
+	function (router, newSubs, oldState) {
+		var rightStep = F3(
+			function (category, taggers, task) {
+				return A2(
+					_elm_lang$core$Task$andThen,
+					function (state) {
+						return A2(
+							_elm_lang$core$Task$andThen,
+							function (pid) {
+								return _elm_lang$core$Task$succeed(
+									A3(
+										_elm_lang$core$Dict$insert,
+										category,
+										A2(_elm_lang$keyboard$Keyboard$Watcher, taggers, pid),
+										state));
+							},
+							_elm_lang$core$Process$spawn(
+								A3(
+									_elm_lang$dom$Dom_LowLevel$onDocument,
+									category,
+									_elm_lang$keyboard$Keyboard$keyCode,
+									function (_p7) {
+										return A2(
+											_elm_lang$core$Platform$sendToSelf,
+											router,
+											A2(_elm_lang$keyboard$Keyboard$Msg, category, _p7));
+									})));
+					},
+					task);
+			});
+		var bothStep = F4(
+			function (category, _p8, taggers, task) {
+				var _p9 = _p8;
+				return A2(
+					_elm_lang$core$Task$map,
+					A2(
+						_elm_lang$core$Dict$insert,
+						category,
+						A2(_elm_lang$keyboard$Keyboard$Watcher, taggers, _p9.pid)),
+					task);
+			});
+		var leftStep = F3(
+			function (category, _p10, task) {
+				var _p11 = _p10;
+				return A2(
+					_elm_lang$keyboard$Keyboard_ops['&>'],
+					_elm_lang$core$Process$kill(_p11.pid),
+					task);
+			});
+		return A6(
+			_elm_lang$core$Dict$merge,
+			leftStep,
+			bothStep,
+			rightStep,
+			oldState,
+			_elm_lang$keyboard$Keyboard$categorize(newSubs),
+			_elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty));
+	});
+var _elm_lang$keyboard$Keyboard$MySub = F2(
+	function (a, b) {
+		return {ctor: 'MySub', _0: a, _1: b};
+	});
+var _elm_lang$keyboard$Keyboard$presses = function (tagger) {
+	return _elm_lang$keyboard$Keyboard$subscription(
+		A2(_elm_lang$keyboard$Keyboard$MySub, 'keypress', tagger));
+};
+var _elm_lang$keyboard$Keyboard$downs = function (tagger) {
+	return _elm_lang$keyboard$Keyboard$subscription(
+		A2(_elm_lang$keyboard$Keyboard$MySub, 'keydown', tagger));
+};
+var _elm_lang$keyboard$Keyboard$ups = function (tagger) {
+	return _elm_lang$keyboard$Keyboard$subscription(
+		A2(_elm_lang$keyboard$Keyboard$MySub, 'keyup', tagger));
+};
+var _elm_lang$keyboard$Keyboard$subMap = F2(
+	function (func, _p12) {
+		var _p13 = _p12;
+		return A2(
+			_elm_lang$keyboard$Keyboard$MySub,
+			_p13._0,
+			function (_p14) {
+				return func(
+					_p13._1(_p14));
+			});
+	});
+_elm_lang$core$Native_Platform.effectManagers['Keyboard'] = {pkg: 'elm-lang/keyboard', init: _elm_lang$keyboard$Keyboard$init, onEffects: _elm_lang$keyboard$Keyboard$onEffects, onSelfMsg: _elm_lang$keyboard$Keyboard$onSelfMsg, tag: 'sub', subMap: _elm_lang$keyboard$Keyboard$subMap};
+
 var _elm_lang$core$Random$onSelfMsg = F3(
 	function (_p1, _p0, seed) {
 		return _elm_lang$core$Task$succeed(seed);
@@ -9696,10 +9872,6 @@ var _connexity$ksql_web$Stream$togglePause = function (stream) {
 				A2(_elm_lang$core$Basics_ops['++'], _p5._2, _p5._1)));
 	}
 };
-
-var _elm_lang$core$Process$kill = _elm_lang$core$Native_Scheduler.kill;
-var _elm_lang$core$Process$sleep = _elm_lang$core$Native_Scheduler.sleep;
-var _elm_lang$core$Process$spawn = _elm_lang$core$Native_Scheduler.spawn;
 
 var _elm_lang$websocket$Native_WebSocket = function() {
 
@@ -10669,7 +10841,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 										_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$RunQuery),
 										_1: {
 											ctor: '::',
-											_0: _elm_lang$html$Html_Attributes$title('Run Query (Shift-Enter)'),
+											_0: _elm_lang$html$Html_Attributes$title('Run Query (Shift+Enter)'),
 											_1: {ctor: '[]'}
 										}
 									},
@@ -10687,7 +10859,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 											_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$PauseQuery),
 											_1: {
 												ctor: '::',
-												_0: _elm_lang$html$Html_Attributes$title('Pause/Resume Query (Ctrl-P)'),
+												_0: _elm_lang$html$Html_Attributes$title('Pause/Resume Query (Ctrl+Z)'),
 												_1: {ctor: '[]'}
 											}
 										},
@@ -10705,7 +10877,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 												_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$StopQuery),
 												_1: {
 													ctor: '::',
-													_0: _elm_lang$html$Html_Attributes$title('Stop Query (Ctrl-C)'),
+													_0: _elm_lang$html$Html_Attributes$title('Stop Query (Ctrl+C)'),
 													_1: {ctor: '[]'}
 												}
 											},
@@ -11349,24 +11521,42 @@ var _connexity$ksql_web$Main$subscriptions = function (model) {
 							_elm_lang$core$Basics$always(_connexity$ksql_web$Main$StopQuery)),
 						_1: {
 							ctor: '::',
-							_0: A2(_elm_lang$core$Time$every, 60 * _elm_lang$core$Time$second, _connexity$ksql_web$Main$SendWebSocketKeepAlive),
+							_0: _elm_lang$keyboard$Keyboard$presses(
+								function (code) {
+									var _p10 = code;
+									switch (_p10) {
+										case 3:
+											return _connexity$ksql_web$Main$StopQuery;
+										case 26:
+											return _connexity$ksql_web$Main$PauseQuery;
+										default:
+											return A2(
+												_elm_lang$core$Debug$log,
+												_elm_lang$core$Basics$toString(_p10),
+												_connexity$ksql_web$Main$NoOp);
+									}
+								}),
 							_1: {
 								ctor: '::',
-								_0: A2(
-									_elm_lang$websocket$WebSocket$listen,
-									_connexity$ksql_web$Main$webSocketUrl(model.flags),
-									_connexity$ksql_web$Main$WebSocketIncoming),
+								_0: A2(_elm_lang$core$Time$every, 60 * _elm_lang$core$Time$second, _connexity$ksql_web$Main$SendWebSocketKeepAlive),
 								_1: {
 									ctor: '::',
-									_0: function () {
-										var _p10 = model.state;
-										if (_p10.ctor === 'Idle') {
-											return _elm_lang$core$Platform_Sub$none;
-										} else {
-											return A2(_elm_lang$core$Time$every, _connexity$ksql_web$Main$progressTickPeriod, _connexity$ksql_web$Main$ProgressTick);
-										}
-									}(),
-									_1: {ctor: '[]'}
+									_0: A2(
+										_elm_lang$websocket$WebSocket$listen,
+										_connexity$ksql_web$Main$webSocketUrl(model.flags),
+										_connexity$ksql_web$Main$WebSocketIncoming),
+									_1: {
+										ctor: '::',
+										_0: function () {
+											var _p11 = model.state;
+											if (_p11.ctor === 'Idle') {
+												return _elm_lang$core$Platform_Sub$none;
+											} else {
+												return A2(_elm_lang$core$Time$every, _connexity$ksql_web$Main$progressTickPeriod, _connexity$ksql_web$Main$ProgressTick);
+											}
+										}(),
+										_1: {ctor: '[]'}
+									}
 								}
 							}
 						}
@@ -11395,23 +11585,23 @@ var _connexity$ksql_web$Main$init = function (flags) {
 				ctor: '::',
 				_0: A2(
 					_elm_lang$core$Task$perform,
-					function (_p11) {
+					function (_p12) {
 						return A2(
 							_connexity$ksql_web$Main$PerformInTimedState,
 							function () {
-								var _p12 = {
+								var _p13 = {
 									ctor: '_Tuple2',
 									_0: _connexity$ksql_web$Main$runOnInit(flags.search),
 									_1: _connexity$ksql_web$Main$queryFromSearch(flags.search)
 								};
-								if (((_p12.ctor === '_Tuple2') && (_p12._0 === true)) && (_p12._1.ctor === 'Just')) {
-									return A2(_connexity$ksql_web$Main$sendQuery, flags, _p12._1._0);
+								if (((_p13.ctor === '_Tuple2') && (_p13._0 === true)) && (_p13._1.ctor === 'Just')) {
+									return A2(_connexity$ksql_web$Main$sendQuery, flags, _p13._1._0);
 								} else {
 									return _elm_lang$core$Platform_Cmd$none;
 								}
 							}(),
 							_connexity$ksql_web$Main$Initializing(
-								A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p11)));
+								A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p12)));
 					},
 					_elm_lang$core$Time$now),
 				_1: {
@@ -11540,10 +11730,10 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				_elm_lang$core$Json_Decode$string));
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p13) {
-				var _p14 = _p13;
-				var _p15 = _p14._1;
-				return _p14._0 ? _connexity$ksql_web$Main$NotificationMessageResponse(_p15) : _connexity$ksql_web$Main$ErrorMessageResponse(_p15);
+			function (_p14) {
+				var _p15 = _p14;
+				var _p16 = _p15._1;
+				return _p15._0 ? _connexity$ksql_web$Main$NotificationMessageResponse(_p16) : _connexity$ksql_web$Main$ErrorMessageResponse(_p16);
 			},
 			currentStatusObjectDecoder);
 	}();
@@ -11553,7 +11743,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 			_connexity$ksql_web$Main$ArrayColumn,
 			_elm_lang$core$Json_Decode$list(
 				_elm_lang$core$Json_Decode$lazy(
-					function (_p16) {
+					function (_p17) {
 						return columnDecoder;
 					})));
 		var nullColumnDecoder = _elm_lang$core$Json_Decode$null(_connexity$ksql_web$Main$NullColumn);
@@ -11604,14 +11794,14 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 			function (kvPairs) {
 				return A2(
 					_elm_lang$core$List$map,
-					function (_p17) {
-						var _p18 = _p17;
+					function (_p18) {
+						var _p19 = _p18;
 						return {
 							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn(_p18._0),
+							_0: _connexity$ksql_web$Main$StringColumn(_p19._0),
 							_1: {
 								ctor: '::',
-								_0: _p18._1,
+								_0: _p19._1,
 								_1: {ctor: '[]'}
 							}
 						};
@@ -11632,7 +11822,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 				_elm_lang$core$Json_Decode$keyValuePairs(columnDecoder)));
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p19) {
+			function (_p20) {
 				return _connexity$ksql_web$Main$TableResponse(
 					A2(
 						_connexity$ksql_web$Main$Table,
@@ -11645,7 +11835,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 								_1: {ctor: '[]'}
 							}
 						},
-						_p19));
+						_p20));
 			},
 			propertiesObjectDecoder);
 	}();
@@ -11698,7 +11888,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 		}();
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p20) {
+			function (_p21) {
 				return A3(
 					_elm_lang$core$Basics$flip,
 					_connexity$ksql_web$Main$TableAndNotificationMessageResponse,
@@ -11718,7 +11908,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 								}
 							}
 						},
-						_elm_lang$core$List$reverse(_p20)));
+						_elm_lang$core$List$reverse(_p21)));
 			},
 			queriesObjectDecoder);
 	}();
@@ -11760,7 +11950,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 		}();
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p21) {
+			function (_p22) {
 				return _connexity$ksql_web$Main$TableResponse(
 					A2(
 						_connexity$ksql_web$Main$Table,
@@ -11777,7 +11967,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 								}
 							}
 						},
-						_elm_lang$core$List$reverse(_p21)));
+						_elm_lang$core$List$reverse(_p22)));
 			},
 			streamsObjectDecoder);
 	}();
@@ -11824,7 +12014,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 		}();
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p22) {
+			function (_p23) {
 				return _connexity$ksql_web$Main$TableResponse(
 					A2(
 						_connexity$ksql_web$Main$Table,
@@ -11845,7 +12035,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 								}
 							}
 						},
-						_elm_lang$core$List$reverse(_p22)));
+						_elm_lang$core$List$reverse(_p23)));
 			},
 			tablesObjectDecoder);
 	}();
@@ -11902,7 +12092,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 		}();
 		return A2(
 			_elm_lang$core$Json_Decode$map,
-			function (_p23) {
+			function (_p24) {
 				return _connexity$ksql_web$Main$TableResponse(
 					A2(
 						_connexity$ksql_web$Main$Table,
@@ -11931,7 +12121,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 								}
 							}
 						},
-						_elm_lang$core$List$reverse(_p23)));
+						_elm_lang$core$List$reverse(_p24)));
 			},
 			topicsObjectDecoder);
 	}();
@@ -12002,18 +12192,18 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 			'description',
 			A2(
 				_elm_lang$core$Json_Decode$andThen,
-				function (_p24) {
-					var _p25 = _p24;
-					var _p26 = {ctor: '_Tuple2', _0: _p25._0, _1: _p25._1};
-					_v12_0:
+				function (_p25) {
+					var _p26 = _p25;
+					var _p27 = {ctor: '_Tuple2', _0: _p26._0, _1: _p26._1};
+					_v13_0:
 					do {
-						if (_p26._1 === false) {
-							if (_p26._0 === 'QUERY') {
-								break _v12_0;
+						if (_p27._1 === false) {
+							if (_p27._0 === 'QUERY') {
+								break _v13_0;
 							} else {
 								return A2(
 									_elm_lang$core$Json_Decode$map,
-									function (_p27) {
+									function (_p28) {
 										return A3(
 											_elm_lang$core$Basics$flip,
 											_connexity$ksql_web$Main$TableAndNotificationMessageResponse,
@@ -12029,13 +12219,13 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 														_1: {ctor: '[]'}
 													}
 												},
-												_elm_lang$core$List$reverse(_p27)));
+												_elm_lang$core$List$reverse(_p28)));
 									},
 									descrObjectBasicSchemaDecoder);
 							}
 						} else {
-							if (_p26._0 === 'QUERY') {
-								break _v12_0;
+							if (_p27._0 === 'QUERY') {
+								break _v13_0;
 							} else {
 								return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$DescribeExtendedResponse, descrObjectExtendedSchemaDecoder);
 							}
@@ -12051,8 +12241,8 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 		A2(
 			_elm_lang$core$Json_Decode$andThen,
 			function (msg) {
-				var _p28 = msg;
-				switch (_p28) {
+				var _p29 = msg;
+				switch (_p29) {
 					case 'connected':
 						return _elm_lang$core$Json_Decode$succeed(_connexity$ksql_web$Main$MetaConnected);
 					case 'rawContentFollows':
@@ -12062,7 +12252,7 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 							A2(_elm_lang$core$Json_Decode$field, 'format', _elm_lang$core$Json_Decode$string));
 					default:
 						return _elm_lang$core$Json_Decode$fail(
-							A2(_elm_lang$core$Basics_ops['++'], 'Unhandled ksqlWeb message: ', _p28));
+							A2(_elm_lang$core$Basics_ops['++'], 'Unhandled ksqlWeb message: ', _p29));
 				}
 			},
 			A2(_elm_lang$core$Json_Decode$field, 'msg', _elm_lang$core$Json_Decode$string)));
@@ -12119,25 +12309,25 @@ var _connexity$ksql_web$Main$responseDecoder = function () {
 }();
 var _connexity$ksql_web$Main$update = F2(
 	function (msg, model) {
-		var _p29 = msg;
-		switch (_p29.ctor) {
+		var _p30 = msg;
+		switch (_p30.ctor) {
 			case 'PerformInTimedState':
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{state: _p29._1}),
-					_1: _p29._0
+						{state: _p30._1}),
+					_1: _p30._0
 				};
 			case 'ChangeQuery':
-				var _p30 = _p29._0;
+				var _p31 = _p30._0;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{query: _p30}),
+						{query: _p31}),
 					_1: _connexity$ksql_web$Main$localStorageSetItemCmd(
-						{ctor: '_Tuple2', _0: 'query', _1: _p30})
+						{ctor: '_Tuple2', _0: 'query', _1: _p31})
 				};
 			case 'RunQuery':
 				return {
@@ -12151,37 +12341,37 @@ var _connexity$ksql_web$Main$update = F2(
 						}),
 					_1: A2(
 						_elm_lang$core$Task$perform,
-						function (_p31) {
+						function (_p32) {
 							return A2(
 								_connexity$ksql_web$Main$PerformInTimedState,
 								A2(_connexity$ksql_web$Main$sendQuery, model.flags, model.query),
 								_connexity$ksql_web$Main$Running(
-									A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p31)));
+									A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p32)));
 						},
 						_elm_lang$core$Time$now)
 				};
 			case 'PauseQuery':
 				var updatedState = function () {
-					var _p32 = model.state;
-					if (_p32.ctor === 'Streaming') {
-						return A2(_connexity$ksql_web$Main$Streaming, !_p32._0, _p32._1);
+					var _p33 = model.state;
+					if (_p33.ctor === 'Streaming') {
+						return A2(_connexity$ksql_web$Main$Streaming, !_p33._0, _p33._1);
 					} else {
-						return _p32;
+						return _p33;
 					}
 				}();
 				var updatedCmd = function () {
-					var _p33 = updatedState;
-					if ((_p33.ctor === 'Streaming') && (_p33._0 === true)) {
+					var _p34 = updatedState;
+					if ((_p34.ctor === 'Streaming') && (_p34._0 === true)) {
 						return _connexity$ksql_web$Main$scrollToBottom;
 					} else {
 						return _elm_lang$core$Platform_Cmd$none;
 					}
 				}();
-				var _p34 = model.result;
-				_v17_2:
+				var _p35 = model.result;
+				_v18_2:
 				do {
-					if (_p34.ctor === 'Just') {
-						switch (_p34._0.ctor) {
+					if (_p35.ctor === 'Just') {
+						switch (_p35._0.ctor) {
 							case 'StreamingTabularResult':
 								return {
 									ctor: '_Tuple2',
@@ -12191,7 +12381,7 @@ var _connexity$ksql_web$Main$update = F2(
 											state: updatedState,
 											result: _elm_lang$core$Maybe$Just(
 												_connexity$ksql_web$Main$StreamingTabularResult(
-													_connexity$ksql_web$Stream$togglePause(_p34._0._0)))
+													_connexity$ksql_web$Stream$togglePause(_p35._0._0)))
 										}),
 									_1: updatedCmd
 								};
@@ -12204,15 +12394,15 @@ var _connexity$ksql_web$Main$update = F2(
 											state: updatedState,
 											result: _elm_lang$core$Maybe$Just(
 												_connexity$ksql_web$Main$StreamingTextualResult(
-													_connexity$ksql_web$Stream$togglePause(_p34._0._0)))
+													_connexity$ksql_web$Stream$togglePause(_p35._0._0)))
 										}),
 									_1: updatedCmd
 								};
 							default:
-								break _v17_2;
+								break _v18_2;
 						}
 					} else {
-						break _v17_2;
+						break _v18_2;
 					}
 				} while(false);
 				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
@@ -12228,25 +12418,25 @@ var _connexity$ksql_web$Main$update = F2(
 						'{\"cmd\":\"stop\"}')
 				};
 			case 'WebSocketIncoming':
-				var _p45 = _p29._0;
+				var _p46 = _p30._0;
 				var responsesResult = A2(
 					_elm_lang$core$Json_Decode$decodeString,
 					_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-					_p45);
+					_p46);
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p35 = responsesResult;
-						if (_p35.ctor === 'Ok') {
+						var _p36 = responsesResult;
+						if (_p36.ctor === 'Ok') {
 							return A3(
 								_elm_lang$core$List$foldr,
 								F2(
 									function (response, model) {
-										var _p36 = response;
-										switch (_p36.ctor) {
+										var _p37 = response;
+										switch (_p37.ctor) {
 											case 'MetaConnected':
-												var _p37 = model.state;
-												if (_p37.ctor === 'Initializing') {
+												var _p38 = model.state;
+												if (_p38.ctor === 'Initializing') {
 													return _elm_lang$core$Native_Utils.update(
 														model,
 														{state: _connexity$ksql_web$Main$Idle});
@@ -12255,8 +12445,8 @@ var _connexity$ksql_web$Main$update = F2(
 												}
 											case 'StreamedRowResponse':
 												var updatedState = function () {
-													var _p38 = model.state;
-													if (_p38.ctor === 'Running') {
+													var _p39 = model.state;
+													if (_p39.ctor === 'Running') {
 														return A2(
 															_connexity$ksql_web$Main$Streaming,
 															true,
@@ -12267,15 +12457,15 @@ var _connexity$ksql_web$Main$update = F2(
 																	_0: 0,
 																	_1: {ctor: '[]'}
 																},
-																_p38._0.currentTime));
+																_p39._0.currentTime));
 													} else {
-														return _p38;
+														return _p39;
 													}
 												}();
 												var rows = function () {
-													var _p39 = model.result;
-													if ((_p39.ctor === 'Just') && (_p39._0.ctor === 'StreamingTabularResult')) {
-														return _p39._0._0;
+													var _p40 = model.result;
+													if ((_p40.ctor === 'Just') && (_p40._0.ctor === 'StreamingTabularResult')) {
+														return _p40._0._0;
 													} else {
 														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
 													}
@@ -12286,7 +12476,7 @@ var _connexity$ksql_web$Main$update = F2(
 														state: updatedState,
 														result: _elm_lang$core$Maybe$Just(
 															_connexity$ksql_web$Main$StreamingTabularResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p36._0, rows)))
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p37._0, rows)))
 													});
 											case 'TableResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -12294,14 +12484,14 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p36._0))
+															_connexity$ksql_web$Main$TabularResult(_p37._0))
 													});
 											case 'NotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
 													model,
 													{
 														state: _connexity$ksql_web$Main$Idle,
-														notifications: {ctor: '::', _0: _p36._0, _1: model.notifications}
+														notifications: {ctor: '::', _0: _p37._0, _1: model.notifications}
 													});
 											case 'TableAndNotificationMessageResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -12309,8 +12499,8 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p36._0)),
-														notifications: {ctor: '::', _0: _p36._1, _1: model.notifications}
+															_connexity$ksql_web$Main$TabularResult(_p37._0)),
+														notifications: {ctor: '::', _0: _p37._1, _1: model.notifications}
 													});
 											case 'DescribeExtendedResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -12318,7 +12508,7 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$DescribeExtendedResult(_p36._0))
+															_connexity$ksql_web$Main$DescribeExtendedResult(_p37._0))
 													});
 											case 'ExplainResponse':
 												return _elm_lang$core$Native_Utils.update(
@@ -12326,17 +12516,17 @@ var _connexity$ksql_web$Main$update = F2(
 													{
 														state: _connexity$ksql_web$Main$Idle,
 														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$ExplainResult(_p36._0))
+															_connexity$ksql_web$Main$ExplainResult(_p37._0))
 													});
 											case 'MetaRawContentFollows':
 												var lines = function () {
-													var _p40 = model.result;
-													if ((_p40.ctor === 'Just') && (_p40._0.ctor === 'StreamingTextualResult')) {
-														return _p40._0._0;
+													var _p41 = model.result;
+													if ((_p41.ctor === 'Just') && (_p41._0.ctor === 'StreamingTextualResult')) {
+														return _p41._0._0;
 													} else {
 														return A2(
 															_connexity$ksql_web$Stream_ops[':::'],
-															A2(_elm_lang$core$Basics_ops['++'], 'Format: ', _p36._0),
+															A2(_elm_lang$core$Basics_ops['++'], 'Format: ', _p37._0),
 															_connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows));
 													}
 												}();
@@ -12348,8 +12538,8 @@ var _connexity$ksql_web$Main$update = F2(
 													});
 											case 'StreamedTextResponse':
 												var updatedState = function () {
-													var _p41 = model.state;
-													if (_p41.ctor === 'Running') {
+													var _p42 = model.state;
+													if (_p42.ctor === 'Running') {
 														return A2(
 															_connexity$ksql_web$Main$Streaming,
 															true,
@@ -12360,15 +12550,15 @@ var _connexity$ksql_web$Main$update = F2(
 																	_0: 0,
 																	_1: {ctor: '[]'}
 																},
-																_p41._0.currentTime));
+																_p42._0.currentTime));
 													} else {
-														return _p41;
+														return _p42;
 													}
 												}();
 												var lines = function () {
-													var _p42 = model.result;
-													if ((_p42.ctor === 'Just') && (_p42._0.ctor === 'StreamingTextualResult')) {
-														return _p42._0._0;
+													var _p43 = model.result;
+													if ((_p43.ctor === 'Just') && (_p43._0.ctor === 'StreamingTextualResult')) {
+														return _p43._0._0;
 													} else {
 														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
 													}
@@ -12379,13 +12569,13 @@ var _connexity$ksql_web$Main$update = F2(
 														state: updatedState,
 														result: _elm_lang$core$Maybe$Just(
 															_connexity$ksql_web$Main$StreamingTextualResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p36._0, lines)))
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p37._0, lines)))
 													});
 											default:
 												var newErrorMessages = function () {
-													var _p43 = _elm_lang$core$String$lines(_p36._0);
-													if (_p43.ctor === '::') {
-														return {ctor: '::', _0: _p43._0, _1: model.errorMessages};
+													var _p44 = _elm_lang$core$String$lines(_p37._0);
+													if (_p44.ctor === '::') {
+														return {ctor: '::', _0: _p44._0, _1: model.errorMessages};
 													} else {
 														return model.errorMessages;
 													}
@@ -12396,7 +12586,7 @@ var _connexity$ksql_web$Main$update = F2(
 										}
 									}),
 								model,
-								_p35._0);
+								_p36._0);
 						} else {
 							return _elm_lang$core$Native_Utils.update(
 								model,
@@ -12408,29 +12598,29 @@ var _connexity$ksql_web$Main$update = F2(
 											'Error parsing JSON (',
 											A2(
 												_elm_lang$core$Basics_ops['++'],
-												_p35._0,
-												A2(_elm_lang$core$Basics_ops['++'], '):\n', _p45))),
+												_p36._0,
+												A2(_elm_lang$core$Basics_ops['++'], '):\n', _p46))),
 										_1: {ctor: '[]'}
 									}
 								});
 						}
 					}(),
 					_1: function () {
-						var _p44 = {ctor: '_Tuple2', _0: responsesResult, _1: model.state};
-						_v27_2:
+						var _p45 = {ctor: '_Tuple2', _0: responsesResult, _1: model.state};
+						_v28_2:
 						do {
-							if ((_p44.ctor === '_Tuple2') && (_p44._1.ctor === 'Streaming')) {
-								if ((((_p44._0.ctor === 'Ok') && (_p44._0._0.ctor === '::')) && (_p44._0._0._0.ctor === 'MetaConnected')) && (_p44._0._0._1.ctor === '[]')) {
+							if ((_p45.ctor === '_Tuple2') && (_p45._1.ctor === 'Streaming')) {
+								if ((((_p45._0.ctor === 'Ok') && (_p45._0._0.ctor === '::')) && (_p45._0._0._0.ctor === 'MetaConnected')) && (_p45._0._0._1.ctor === '[]')) {
 									return A2(_connexity$ksql_web$Main$sendQuery, model.flags, model.query);
 								} else {
-									if (_p44._1._0 === true) {
+									if (_p45._1._0 === true) {
 										return _connexity$ksql_web$Main$scrollToBottom;
 									} else {
-										break _v27_2;
+										break _v28_2;
 									}
 								}
 							} else {
-								break _v27_2;
+								break _v28_2;
 							}
 						} while(false);
 						return _elm_lang$core$Platform_Cmd$none;
@@ -12446,60 +12636,60 @@ var _connexity$ksql_web$Main$update = F2(
 						'{}')
 				};
 			case 'ProgressTick':
-				var _p52 = _p29._0;
+				var _p53 = _p30._0;
 				return {
 					ctor: '_Tuple2',
 					_0: function () {
-						var _p46 = model.state;
-						switch (_p46.ctor) {
+						var _p47 = model.state;
+						switch (_p47.ctor) {
 							case 'Initializing':
-								var _p47 = _p46._0;
+								var _p48 = _p47._0;
 								var updatedProgress = _elm_lang$core$Native_Utils.update(
-									_p47,
-									{duration: (_p47.duration + _p52) - _p47.currentTime, currentTime: _p52});
+									_p48,
+									{duration: (_p48.duration + _p53) - _p48.currentTime, currentTime: _p53});
 								return _elm_lang$core$Native_Utils.update(
 									model,
 									{
 										state: _connexity$ksql_web$Main$Initializing(updatedProgress)
 									});
 							case 'Running':
-								var _p48 = _p46._0;
+								var _p49 = _p47._0;
 								var updatedProgress = _elm_lang$core$Native_Utils.update(
-									_p48,
-									{duration: (_p48.duration + _p52) - _p48.currentTime, currentTime: _p52});
+									_p49,
+									{duration: (_p49.duration + _p53) - _p49.currentTime, currentTime: _p53});
 								return _elm_lang$core$Native_Utils.update(
 									model,
 									{
 										state: _connexity$ksql_web$Main$Running(updatedProgress)
 									});
 							case 'Streaming':
-								var _p50 = _p46._1;
-								var _p49 = _p46._0;
+								var _p51 = _p47._1;
+								var _p50 = _p47._0;
 								var updatedProgress = function () {
-									var duration = _p52 - _p50.currentTime;
-									var markerDurations = (!_p49) ? _p50.markerDurations : A2(
+									var duration = _p53 - _p51.currentTime;
+									var markerDurations = (!_p50) ? _p51.markerDurations : A2(
 										_elm_lang$core$List$map,
 										F2(
 											function (x, y) {
 												return x + y;
 											})(duration),
-										_p50.markerDurations);
+										_p51.markerDurations);
 									return _elm_lang$core$Native_Utils.update(
-										_p50,
-										{markerDurations: markerDurations, currentTime: _p52});
+										_p51,
+										{markerDurations: markerDurations, currentTime: _p53});
 								}();
 								return _elm_lang$core$Native_Utils.update(
 									model,
 									{
-										state: A2(_connexity$ksql_web$Main$Streaming, _p49, updatedProgress)
+										state: A2(_connexity$ksql_web$Main$Streaming, _p50, updatedProgress)
 									});
 							default:
 								return model;
 						}
 					}(),
 					_1: function () {
-						var _p51 = model.state;
-						if ((_p51.ctor === 'Streaming') && (_p51._0 === true)) {
+						var _p52 = model.state;
+						if ((_p52.ctor === 'Streaming') && (_p52._0 === true)) {
 							return A2(
 								_elm_lang$core$Random$generate,
 								_connexity$ksql_web$Main$ProgressAddRandomMarker,
@@ -12510,12 +12700,12 @@ var _connexity$ksql_web$Main$update = F2(
 					}()
 				};
 			case 'ProgressAddRandomMarker':
-				var _p53 = model.state;
-				if ((_p53.ctor === 'Streaming') && (_p53._0 === true)) {
-					var _p55 = _p53._1.markerDurations;
+				var _p54 = model.state;
+				if ((_p54.ctor === 'Streaming') && (_p54._0 === true)) {
+					var _p56 = _p54._1.markerDurations;
 					var newMarkerDurations = function () {
-						var _p54 = _p29._0;
-						switch (_p54) {
+						var _p55 = _p30._0;
+						switch (_p55) {
 							case 1:
 								return {
 									ctor: '::',
@@ -12587,7 +12777,7 @@ var _connexity$ksql_web$Main$update = F2(
 						function (t) {
 							return _elm_lang$core$Native_Utils.cmp(t, _connexity$ksql_web$Main$progressMarkerLife) > 0;
 						},
-						_p55) ? newMarkerDurations : A2(_elm_lang$core$Basics_ops['++'], newMarkerDurations, _p55);
+						_p56) ? newMarkerDurations : A2(_elm_lang$core$Basics_ops['++'], newMarkerDurations, _p56);
 					return {
 						ctor: '_Tuple2',
 						_0: _elm_lang$core$Native_Utils.update(
@@ -12596,7 +12786,7 @@ var _connexity$ksql_web$Main$update = F2(
 								state: A2(
 									_connexity$ksql_web$Main$Streaming,
 									true,
-									A2(_connexity$ksql_web$Main$IndeterminateProgress, updatedMarkerDurations, _p53._1.currentTime))
+									A2(_connexity$ksql_web$Main$IndeterminateProgress, updatedMarkerDurations, _p54._1.currentTime))
 							}),
 						_1: _elm_lang$core$Platform_Cmd$none
 					};

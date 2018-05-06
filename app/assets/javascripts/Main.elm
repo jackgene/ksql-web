@@ -1,5 +1,6 @@
 port module Main exposing (..)
 
+import Char
 import Dom.Scroll
 import Html exposing (..)
 import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
@@ -7,6 +8,7 @@ import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Keyboard
 import Random
 import Stream exposing (Stream, (:::))
 import Task
@@ -19,8 +21,6 @@ port codeMirrorFromTextAreaCmd : String -> Cmd msg
 port codeMirrorDocSetValueCmd : String -> Cmd msg
 port codeMirrorDocValueChangedSub : (String -> msg) -> Sub msg
 port codeMirrorKeyMapRunQuerySub : (() -> msg) -> Sub msg
-port codeMirrorKeyMapPauseQuerySub : (() -> msg) -> Sub msg
-port codeMirrorKeyMapStopQuerySub : (() -> msg) -> Sub msg
 
 
 maxDisplayedRows : Int
@@ -206,6 +206,7 @@ type Msg
   | NoOp
 
 
+-- JSON response from WebSocket
 type Response
   -- Meta... responses are KSQL Web specific control messages
   = MetaConnected
@@ -221,6 +222,7 @@ type Response
   | ErrorMessageResponse String
 
 
+-- JSON decoder
 responseDecoder : Decode.Decoder Response
 responseDecoder =
   let
@@ -827,6 +829,14 @@ subscriptions model =
     , codeMirrorKeyMapRunQuerySub (always RunQuery)
     , codeMirrorKeyMapPauseQuerySub (always PauseQuery)
     , codeMirrorKeyMapStopQuerySub (always StopQuery)
+    , Keyboard.presses
+      ( \code -> case code of
+        -- Ctrl+C
+        3 -> StopQuery
+        -- Ctrl+Z
+        26 -> PauseQuery
+        _ -> NoOp
+      )
     , Time.every (60 * second) SendWebSocketKeepAlive
     , WebSocket.listen (webSocketUrl model.flags) WebSocketIncoming
     , case model.state of
@@ -925,13 +935,13 @@ view model =
     [ div [ id "control" ]
       ( [ div [ class "primary" ]
           [ button
-            [ onClick RunQuery, title "Run Query (Shift-Enter)" ]
+            [ onClick RunQuery, title "Run Query (Shift+Enter)" ]
             [ text "▶" ]
           , button
-            [ onClick PauseQuery, title "Pause/Resume Query (Ctrl-P)" ]
+            [ onClick PauseQuery, title "Pause/Resume Query (Ctrl+Shift+Z)" ]
             [ text "️❙❙" ]
           , button
-            [ onClick StopQuery, title "Stop Query (Ctrl-C)" ]
+            [ onClick StopQuery, title "Stop Query (Ctrl+Shift+C)" ]
             [ text "◼" ]
           ]
         ] ++
