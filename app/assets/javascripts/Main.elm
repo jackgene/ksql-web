@@ -1,5 +1,6 @@
 port module Main exposing (..)
 
+import Dict exposing (Dict)
 import Dom.Scroll
 import Html exposing (..)
 import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
@@ -15,15 +16,23 @@ import Time exposing (Time, millisecond, second)
 import WebSocket
 
 
-port localStorageSetItemCmd : (String, String) -> Cmd msg
+port localStorageSetQueryHistoryCmd : List String -> Cmd msg
+port localStorageGetQueryHistoryCmd : () -> Cmd msg
+port localStorageGetQueryHistorySub : (List String -> msg) -> Sub msg
 port codeMirrorFromTextAreaCmd : String -> Cmd msg
-port codeMirrorDocSetValueCmd : String -> Cmd msg
+port codeMirrorDocSetValueCursorCmd : { value : String, cursor : { ch : Int, line : Int } } -> Cmd msg
 port codeMirrorDocValueChangedSub : (String -> msg) -> Sub msg
 port codeMirrorKeyMapRunQuerySub : (() -> msg) -> Sub msg
+port codeMirrorKeyMapPrevInHistorySub : (() -> msg) -> Sub msg
+port codeMirrorKeyMapNextInHistorySub : (() -> msg) -> Sub msg
 
 
 maxDisplayedRows : Int
 maxDisplayedRows = 5000
+
+
+maxQueryHistoryItems : Int
+maxQueryHistoryItems = 500
 
 
 progressMarkerLife : Time
@@ -39,7 +48,7 @@ type alias Flags =
   { secure : Bool
   , host : String
   , search : String
-  , initialQuery : String
+  , queryHistory : List String
   }
 
 
@@ -61,6 +70,12 @@ type State
   | Running DeterminateProgress
   | Streaming Bool IndeterminateProgress
 
+
+type alias Query =
+  { queryHistory : List String
+  , currentHistoryIndex : Int
+  , editBuffers : Dict Int String
+  }
 
 type Column
   = BoolColumn Bool
@@ -127,7 +142,7 @@ type QueryResult
 type alias Model =
   { flags : Flags
   , state : State
-  , query : String
+  , query : Query
   , result : Maybe QueryResult
   , notifications : List String
   , errorMessages : List String
@@ -154,17 +169,17 @@ searchParts search =
   (String.split "&" (String.dropLeft 1 search))
 
 
-queryFromSearch : String -> Maybe String
-queryFromSearch search =
+queryTextFromSearch : String -> Maybe String
+queryTextFromSearch search =
   List.head
-    ( List.filterMap
-      (\searchPart ->
-        case String.split "=" searchPart of
-          [ "query", query ] -> Http.decodeUri query
-          _ -> Nothing
-      )
-      (searchParts search)
+  ( List.filterMap
+    (\searchPart ->
+      case String.split "=" searchPart of
+        [ "query", query ] -> Http.decodeUri query
+        _ -> Nothing
     )
+    (searchParts search)
+  )
 
 
 runOnInit  : String -> Bool
@@ -174,21 +189,38 @@ runOnInit search =
 
 init : Flags -> (Model, Cmd Msg)
 init flags =
-  ( Model flags Idle "" Nothing [] []
+  ( Model flags Idle (Query flags.queryHistory -1 (Dict.singleton -1 "")) Nothing [] []
   , Cmd.batch
     [ Task.perform
         ( PerformInTimedState
-          ( case (runOnInit flags.search, queryFromSearch flags.search) of
-              (True, Just query) -> sendQuery flags query
+          ( case (runOnInit flags.search, queryTextFromSearch flags.search) of
+              (True, Just queryText) -> sendQuery flags queryText
               _ -> Cmd.none
           )
           << Initializing << DeterminateProgress 0
         )
         Time.now
-    , codeMirrorDocSetValueCmd (Maybe.withDefault flags.initialQuery (queryFromSearch flags.search))
+    , let
+        value : String
+        value =
+          Maybe.withDefault "" (queryTextFromSearch flags.search)
+      in
+        codeMirrorDocSetValueCursorCmd
+        { value = value, cursor = {line = List.length (String.lines value), ch = 0} }
     , codeMirrorFromTextAreaCmd "source"
     ]
   )
+
+
+-- Common
+currentQueryText : Query -> String
+currentQueryText query =
+  Maybe.withDefault "" <| List.head <| List.filterMap
+    identity
+    [ Dict.get query.currentHistoryIndex query.editBuffers
+    , if query.currentHistoryIndex < 0 then Nothing
+      else List.head (List.drop query.currentHistoryIndex query.queryHistory)
+    ]
 
 
 -- Update
@@ -198,6 +230,9 @@ type Msg
   | RunQuery
   | PauseQuery
   | StopQuery
+  | UpdateQueryHistory (List String)
+  | UsePrevQueryInHistory
+  | UseNextQueryInHistory
   | WebSocketIncoming String
   | SendWebSocketKeepAlive Time
   | ProgressTick Time
@@ -562,10 +597,16 @@ update msg model =
       , cmd
       )
 
-    ChangeQuery query ->
-      ( { model | query = query }
-      , localStorageSetItemCmd ("query", query)
-      )
+    ChangeQuery queryText ->
+      let
+        query : Query
+        query = model.query
+      in
+        ( { model
+          | query = { query | editBuffers = Dict.insert query.currentHistoryIndex queryText query.editBuffers }
+          }
+        , Cmd.none
+        )
 
     RunQuery ->
       ( { model
@@ -573,12 +614,15 @@ update msg model =
         , notifications = []
         , errorMessages = []
         }
-      , Task.perform
-        ( PerformInTimedState
-          (sendQuery model.flags model.query)
-          << Running << DeterminateProgress 0
-        )
-        Time.now
+      , Cmd.batch
+        [ Task.perform
+          ( PerformInTimedState
+            (sendQuery model.flags (currentQueryText model.query))
+            << Running << DeterminateProgress 0
+          )
+          Time.now
+        , localStorageGetQueryHistoryCmd ()
+        ]
       )
 
     PauseQuery ->
@@ -616,6 +660,72 @@ update msg model =
       ( { model | state = Idle }
       , WebSocket.send (webSocketUrl model.flags) """{"cmd":"stop"}"""
       )
+
+    UpdateQueryHistory queryHistory ->
+      let
+        queryText : String
+        queryText = currentQueryText model.query
+
+        updatedQueryHistory : List String
+        updatedQueryHistory =
+          case queryHistory of
+            [] -> [ queryText ]
+            firstQueryTextInHistory :: _ ->
+              if firstQueryTextInHistory == queryText then queryHistory
+              else List.take maxQueryHistoryItems (queryText :: queryHistory)
+      in
+        ( { model | query = Query updatedQueryHistory 0 Dict.empty }
+        , localStorageSetQueryHistoryCmd updatedQueryHistory
+        )
+
+    UsePrevQueryInHistory ->
+      let
+        existingQuery : Query
+        existingQuery = model.query
+
+        updatedQuery : Query
+        updatedQuery =
+          { existingQuery
+          | currentHistoryIndex =
+            min (List.length existingQuery.queryHistory - 1) (existingQuery.currentHistoryIndex + 1)
+          }
+      in
+        if existingQuery == updatedQuery then
+          ( model, Cmd.none)
+        else
+          ( { model | query = updatedQuery }
+          , let
+              value : String
+              value = currentQueryText updatedQuery
+            in
+              codeMirrorDocSetValueCursorCmd
+              { value = value
+              , cursor = {line = List.length (String.lines value), ch = 0} }
+          )
+
+    UseNextQueryInHistory ->
+      let
+        existingQuery : Query
+        existingQuery = model.query
+
+        updatedQuery : Query
+        updatedQuery =
+          { existingQuery
+          | currentHistoryIndex = max -1 (existingQuery.currentHistoryIndex - 1)
+          }
+      in
+        if existingQuery == updatedQuery then
+          ( model, Cmd.none)
+        else
+          ( { model | query = updatedQuery }
+          , let
+              value : String
+              value = currentQueryText updatedQuery
+            in
+              codeMirrorDocSetValueCursorCmd
+              { value = value
+              , cursor = {line = 0, ch = 1} }
+          )
 
     WebSocketIncoming responseJson ->
       let
@@ -733,7 +843,7 @@ update msg model =
               { model | errorMessages = [ "Error parsing JSON (" ++ errorMsg ++ "):\n" ++ responseJson ] }
         , case (responsesResult, model.state) of
             (Ok [ MetaConnected ], Streaming _ _) ->
-              sendQuery model.flags model.query
+              sendQuery model.flags (currentQueryText model.query)
             (_, Streaming True _) -> scrollToBottom
             _ -> Cmd.none
         )
@@ -824,8 +934,11 @@ update msg model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
-    [ codeMirrorDocValueChangedSub ChangeQuery
+    [ localStorageGetQueryHistorySub UpdateQueryHistory
+    , codeMirrorDocValueChangedSub ChangeQuery
     , codeMirrorKeyMapRunQuerySub (always RunQuery)
+    , codeMirrorKeyMapPrevInHistorySub (always UsePrevQueryInHistory)
+    , codeMirrorKeyMapNextInHistorySub (always UseNextQueryInHistory)
     , Keyboard.presses
       ( \code -> case code of
         -- Ctrl+C
@@ -942,13 +1055,14 @@ view model =
             [ text "◼" ]
           ]
         ] ++
-        ( if String.isEmpty model.query then []
-          else
-            [ div [ class "primary" ]
-              [ a [ href ("?query=" ++ (Http.encodeUri model.query)) ]
-                [ text "Link to this Query" ]
+        ( case currentQueryText model.query of
+            "" -> []
+            nonEmptyQueryText ->
+              [ div [ class "primary" ]
+                [ a [ href ("?query=" ++ (Http.encodeUri nonEmptyQueryText)) ]
+                  [ text "Link to this Query" ]
+                ]
               ]
-            ]
         ) ++
         [ div [ class "secondary" ]
           [ a
@@ -960,7 +1074,7 @@ view model =
         ]
       )
     , div [ id "input" ]
-      [ div [] [ textarea [ id "source", autofocus True ] [ text model.query ] ]
+      [ div [] [ textarea [ id "source", autofocus True ] [] ]
       , div [ id "progress" ]
         [ case model.state of
             Initializing progress -> progressBarView ((progress.duration / (1 * second)) ^ 2)

@@ -6,55 +6,86 @@
   <script src="@routes.Assets.versioned("javascripts/codemirror/mode/ksql/ksql.js")" type="text/javascript"></script>
   <script src="@routes.Assets.versioned("javascripts/main.js")" type="text/javascript"></script>
   <script type="text/javascript">
+    "use strict";
+
+    function localStorageGetQueryHistory() {
+      try {
+        let item = JSON.parse(window.localStorage.getItem("queryHistory"));
+        return item && Array.isArray(item) ? item : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
     let app = Elm.Main.fullscreen(
       { secure: window.location.protocol === "https:"
       , host: window.location.host
       , search: window.location.search
-      , initialQuery : localStorage.getItem("query") || ""
+      , queryHistory : localStorageGetQueryHistory()
       }
     );
-      let cm;
+    let cm;
 
-      app.ports.localStorageSetItemCmd.subscribe(
-        function(keyValue) {
-          let [key, value] = keyValue;
-          window.localStorage.setItem(key, value);
-        }
-      );
-      app.ports.codeMirrorFromTextAreaCmd.subscribe(
-        function(id) {
-          cm = CodeMirror.fromTextArea(
-            document.getElementById(id),
-            {
-              lineWrapping: true,
-              matchBrackets: true,
-              indentUnit: 2,
-              indentWithTabs: false,
-              mode: 'text/x-ksql',
-              theme: 'eclipse',
-              "extraKeys": {
-                "Shift-Enter": function() {
-                  app.ports.codeMirrorKeyMapRunQuerySub.send(null);
-                },
-                "Cmd-Enter": function() {
-                  app.ports.codeMirrorKeyMapRunQuerySub.send(null);
-                },
+    app.ports.localStorageSetQueryHistoryCmd.subscribe(
+      function(queryHistory) {
+        window.localStorage.setItem("queryHistory", JSON.stringify(queryHistory));
+      }
+    );
+    app.ports.localStorageGetQueryHistoryCmd.subscribe(
+      function() {
+        app.ports.localStorageGetQueryHistorySub.send(
+          localStorageGetQueryHistory()
+        );
+      }
+    );
+    app.ports.codeMirrorFromTextAreaCmd.subscribe(
+      function(id) {
+        cm = CodeMirror.fromTextArea(
+          document.getElementById(id),
+          {
+            lineWrapping: true,
+            matchBrackets: true,
+            indentUnit: 2,
+            indentWithTabs: false,
+            mode: 'text/x-ksql',
+            theme: 'eclipse',
+            "extraKeys": {
+              "Shift-Enter": function() {
+                app.ports.codeMirrorKeyMapRunQuerySub.send(null);
+              },
+              "Cmd-Enter": function() {
+                app.ports.codeMirrorKeyMapRunQuerySub.send(null);
+              },
+              "Up": function(cm) {
+                if (cm.getCursor().line > 0) return CodeMirror.Pass;
+                else {
+                  app.ports.codeMirrorKeyMapPrevInHistorySub.send(null);
+                }
+              },
+              "Down": function(cm) {
+                let doc = cm.getDoc();
+                if (doc.getCursor().line < doc.lineCount() - 1) return CodeMirror.Pass;
+                else {
+                  app.ports.codeMirrorKeyMapNextInHistorySub.send(null);
+                }
               }
             }
-          );
-          cm.on(
-            "changes",
-            function (cm) {
-              app.ports.codeMirrorDocValueChangedSub.send(cm.getDoc().getValue());
-            }
-          );
-        }
-      );
-      app.ports.codeMirrorDocSetValueCmd.subscribe(
-        function(value) {
-          cm.getDoc().setValue(value);
-          cm.getDoc().setCursor(cm.lineCount(), 0);
-        }
-      );
+          }
+        );
+        cm.on(
+          "changes",
+          function (cm) {
+            app.ports.codeMirrorDocValueChangedSub.send(cm.getDoc().getValue());
+          }
+        );
+      }
+    );
+    app.ports.codeMirrorDocSetValueCursorCmd.subscribe(
+      function(param) {
+        cm.getDoc().setValue(param.value);
+        cm.getDoc().setCursor(param.cursor);
+        cm.getDoc().clearHistory();
+      }
+    );
   </script>
 }
