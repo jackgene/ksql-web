@@ -1,6 +1,5 @@
 port module Main exposing (..)
 
-import Char
 import Dom.Scroll
 import Html exposing (..)
 import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
