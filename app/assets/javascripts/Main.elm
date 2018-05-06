@@ -826,8 +826,6 @@ subscriptions model =
   Sub.batch
     [ codeMirrorDocValueChangedSub ChangeQuery
     , codeMirrorKeyMapRunQuerySub (always RunQuery)
-    , codeMirrorKeyMapPauseQuerySub (always PauseQuery)
-    , codeMirrorKeyMapStopQuerySub (always StopQuery)
     , Keyboard.presses
       ( \code -> case code of
         -- Ctrl+C
