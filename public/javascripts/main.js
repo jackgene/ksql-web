@@ -10703,7 +10703,7 @@ var _connexity$ksql_web$Main$sendQuery = F2(
 	});
 var _connexity$ksql_web$Main$progressTickPeriod = 200 * _elm_lang$core$Time$millisecond;
 var _connexity$ksql_web$Main$progressMarkerLife = 1.5 * _elm_lang$core$Time$second;
-var _connexity$ksql_web$Main$maxQueryHistoryItems = 2;
+var _connexity$ksql_web$Main$maxQueryHistoryItems = 500;
 var _connexity$ksql_web$Main$maxDisplayedRows = 5000;
 var _connexity$ksql_web$Main$localStorageSetQueryHistoryCmd = _elm_lang$core$Native_Platform.outgoingPort(
 	'localStorageSetQueryHistoryCmd',
@@ -12405,29 +12405,30 @@ var _connexity$ksql_web$Main$update = F2(
 							notifications: {ctor: '[]'},
 							errorMessages: {ctor: '[]'}
 						}),
-					_1: _elm_lang$core$Platform_Cmd$batch(
-						{
-							ctor: '::',
-							_0: A2(
-								_elm_lang$core$Task$perform,
-								function (_p32) {
-									return A2(
-										_connexity$ksql_web$Main$PerformInTimedState,
-										A2(
-											_connexity$ksql_web$Main$sendQuery,
-											model.flags,
-											_connexity$ksql_web$Main$currentQueryText(model.query)),
-										_connexity$ksql_web$Main$Running(
-											A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p32)));
-								},
-								_elm_lang$core$Time$now),
-							_1: {
+					_1: function () {
+						var queryText = _elm_lang$core$String$trim(
+							_connexity$ksql_web$Main$currentQueryText(model.query));
+						return _elm_lang$core$String$isEmpty(queryText) ? _elm_lang$core$Platform_Cmd$none : _elm_lang$core$Platform_Cmd$batch(
+							{
 								ctor: '::',
-								_0: _connexity$ksql_web$Main$localStorageGetQueryHistoryCmd(
-									{ctor: '_Tuple0'}),
-								_1: {ctor: '[]'}
-							}
-						})
+								_0: A2(
+									_elm_lang$core$Task$perform,
+									function (_p32) {
+										return A2(
+											_connexity$ksql_web$Main$PerformInTimedState,
+											A2(_connexity$ksql_web$Main$sendQuery, model.flags, queryText),
+											_connexity$ksql_web$Main$Running(
+												A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p32)));
+									},
+									_elm_lang$core$Time$now),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Main$localStorageGetQueryHistoryCmd(
+										{ctor: '_Tuple0'}),
+									_1: {ctor: '[]'}
+								}
+							});
+					}()
 				};
 			case 'PauseQuery':
 				var updatedState = function () {

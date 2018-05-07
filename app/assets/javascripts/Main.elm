@@ -614,15 +614,22 @@ update msg model =
         , notifications = []
         , errorMessages = []
         }
-      , Cmd.batch
-        [ Task.perform
-          ( PerformInTimedState
-            (sendQuery model.flags (currentQueryText model.query))
-            << Running << DeterminateProgress 0
-          )
-          Time.now
-        , localStorageGetQueryHistoryCmd ()
-        ]
+      , let
+          queryText : String
+          queryText =
+            String.trim (currentQueryText model.query)
+        in
+          if String.isEmpty queryText then Cmd.none
+          else
+            Cmd.batch
+            [ Task.perform
+              ( PerformInTimedState
+                (sendQuery model.flags queryText)
+                << Running << DeterminateProgress 0
+              )
+              Time.now
+            , localStorageGetQueryHistoryCmd ()
+            ]
       )
 
     PauseQuery ->
