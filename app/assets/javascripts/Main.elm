@@ -83,6 +83,7 @@ type Column
   | StringColumn String
   | NullColumn
   | ArrayColumn (List Column)
+  | JsonColumn (List (String, Column))
 
 
 type alias Row = List Column
@@ -296,9 +297,18 @@ responseDecoder =
 
         arrayColumnDecoder : Decode.Decoder Column
         arrayColumnDecoder = Decode.map ArrayColumn (Decode.list (Decode.lazy (\_ -> columnDecoder)))
+
+        jsonColumnDecoder : Decode.Decoder Column
+        jsonColumnDecoder = Decode.map JsonColumn (Decode.keyValuePairs (Decode.lazy (\_ -> columnDecoder)))
       in
         Decode.oneOf
-        [ boolColumnDecoder, intColumnDecoder, stringColumnDecoder, nullColumnDecoder, arrayColumnDecoder ]
+        [ boolColumnDecoder
+        , intColumnDecoder
+        , stringColumnDecoder
+        , nullColumnDecoder
+        , arrayColumnDecoder
+        , jsonColumnDecoder
+        ]
 
 
     rowRespDecoder : Decode.Decoder Response
@@ -984,6 +994,24 @@ rowKeyType schema =
     )
 
 
+jsonValueView : Column -> List (Html Msg)
+jsonValueView col =
+  case col of
+    StringColumn value ->
+      [ span [ class "meta" ] [ text "\"" ]
+      , text value
+      , span [ class "meta" ] [ text "\"" ]
+      ]
+    NullColumn ->
+      [ span [ class "meta" ] [ text "null" ] ]
+    ArrayColumn values ->
+      List.intersperse
+        (span [ class "meta" ] [ text ", " ])
+        (List.concatMap colContentView values)
+    otherColumn ->
+      colContentView otherColumn
+
+
 colContentView : Column -> List (Html Msg)
 colContentView col =
   case col of
@@ -999,6 +1027,19 @@ colContentView col =
       List.intersperse
         (span [ class "meta" ] [ text ", " ])
         (List.concatMap colContentView values)
+    JsonColumn keyValues ->
+      [ span [ class "meta" ] [ text "{" ] ] ++
+      ( List.intersperse
+        (span [ class "meta" ] [ text ", " ])
+        ( List.concatMap
+          ( \(key, value) ->
+            span [ class "meta" ] [ text ("\"" ++ key ++ "\":") ] ::
+            jsonValueView value
+          )
+          keyValues
+        )
+      ) ++
+      [ span [ class "meta" ] [ text "}" ] ]
 
 
 colView : Bool -> Column -> Html Msg
