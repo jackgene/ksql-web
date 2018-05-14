@@ -1005,11 +1005,14 @@ jsonValueView col =
     NullColumn ->
       [ span [ class "meta" ] [ text "null" ] ]
     ArrayColumn values ->
-      List.intersperse
+      [ span [ class "meta" ] [ text "[" ] ] ++
+      ( List.intersperse
         (span [ class "meta" ] [ text ", " ])
-        (List.concatMap colContentView values)
-    otherColumn ->
-      colContentView otherColumn
+        (List.concatMap jsonValueView values)
+      ) ++
+      [ span [ class "meta" ] [ text "]" ] ]
+    other ->
+      colContentView other
 
 
 colContentView : Column -> List (Html Msg)

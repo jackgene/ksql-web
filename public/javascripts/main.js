@@ -10562,20 +10562,56 @@ var _connexity$ksql_web$Main$jsonValueView = function (col) {
 			};
 		case 'ArrayColumn':
 			return A2(
-				_elm_lang$core$List$intersperse,
+				_elm_lang$core$Basics_ops['++'],
+				{
+					ctor: '::',
+					_0: A2(
+						_elm_lang$html$Html$span,
+						{
+							ctor: '::',
+							_0: _elm_lang$html$Html_Attributes$class('meta'),
+							_1: {ctor: '[]'}
+						},
+						{
+							ctor: '::',
+							_0: _elm_lang$html$Html$text('['),
+							_1: {ctor: '[]'}
+						}),
+					_1: {ctor: '[]'}
+				},
 				A2(
-					_elm_lang$html$Html$span,
+					_elm_lang$core$Basics_ops['++'],
+					A2(
+						_elm_lang$core$List$intersperse,
+						A2(
+							_elm_lang$html$Html$span,
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html_Attributes$class('meta'),
+								_1: {ctor: '[]'}
+							},
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html$text(', '),
+								_1: {ctor: '[]'}
+							}),
+						A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Main$jsonValueView, _p2._0)),
 					{
 						ctor: '::',
-						_0: _elm_lang$html$Html_Attributes$class('meta'),
+						_0: A2(
+							_elm_lang$html$Html$span,
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html_Attributes$class('meta'),
+								_1: {ctor: '[]'}
+							},
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html$text(']'),
+								_1: {ctor: '[]'}
+							}),
 						_1: {ctor: '[]'}
-					},
-					{
-						ctor: '::',
-						_0: _elm_lang$html$Html$text(', '),
-						_1: {ctor: '[]'}
-					}),
-				A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Main$colContentView, _p2._0));
+					}));
 		default:
 			return _connexity$ksql_web$Main$colContentView(_p2);
 	}
