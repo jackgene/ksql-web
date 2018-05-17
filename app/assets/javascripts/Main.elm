@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Dict exposing (Dict)
 import Dom.Scroll
 import Html exposing (..)
-import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
+import Html.Attributes exposing (align, autofocus, class, href, id, src, style, target, title)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
@@ -79,7 +79,7 @@ type alias Query =
 
 type Column
   = BoolColumn Bool
-  | IntColumn Int
+  | NumericColumn Float
   | StringColumn String
   | NullColumn
   | ArrayColumn (List Column)
@@ -287,7 +287,7 @@ responseDecoder =
         boolColumnDecoder = Decode.map BoolColumn Decode.bool
 
         intColumnDecoder : Decode.Decoder Column
-        intColumnDecoder = Decode.map IntColumn Decode.int
+        intColumnDecoder = Decode.map NumericColumn Decode.float
 
         stringColumnDecoder : Decode.Decoder Column
         stringColumnDecoder = Decode.map StringColumn Decode.string
@@ -1019,13 +1019,13 @@ colContentView : Column -> List (Html Msg)
 colContentView col =
   case col of
     BoolColumn value ->
-      [ text (String.toLower (toString value)) ]
-    IntColumn value ->
-      [ text (toString value) ]
+      [ text (String.toLower (toString value) ++ "\x00A0") ]
+    NumericColumn value ->
+      [ text ("\x00A0" ++ (toString value)) ]
     StringColumn value ->
-      [ text value ]
+      [ text (value ++ "\x00A0") ]
     NullColumn ->
-      [ span [ class "meta" ] [ text "(null)" ] ]
+      [ span [ class "meta" ] [ text "(null)\x00A0" ] ]
     ArrayColumn values ->
       List.intersperse
         (span [ class "meta" ] [ text ", " ])
@@ -1048,7 +1048,10 @@ colContentView col =
 colView : Bool -> Column -> Html Msg
 colView isHeader col =
   (if isHeader then th else td)
-  []
+  ( case col of
+      NumericColumn _ -> [ align "right" ]
+      _ -> []
+  )
   (colContentView col)
 
 rowView : Bool -> Row -> Html Msg
