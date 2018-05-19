@@ -3,7 +3,7 @@ port module Main exposing (..)
 import Dict exposing (Dict)
 import Dom.Scroll
 import Html exposing (..)
-import Html.Attributes exposing (align, autofocus, class, href, id, src, style, target, title)
+import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
@@ -1019,13 +1019,13 @@ colContentView : Column -> List (Html Msg)
 colContentView col =
   case col of
     BoolColumn value ->
-      [ text (String.toLower (toString value) ++ "\x00A0") ]
+      [ text (String.toLower (toString value)) ]
     NumericColumn value ->
-      [ text ("\x00A0" ++ (toString value)) ]
+      [ text (toString value) ]
     StringColumn value ->
-      [ text (value ++ "\x00A0") ]
+      [ text value ]
     NullColumn ->
-      [ span [ class "meta" ] [ text "(null)\x00A0" ] ]
+      [ span [ class "meta" ] [ text "(null)" ] ]
     ArrayColumn values ->
       List.intersperse
         (span [ class "meta" ] [ text ", " ])
@@ -1049,8 +1049,8 @@ colView : Bool -> Column -> Html Msg
 colView isHeader col =
   (if isHeader then th else td)
   ( case col of
-      NumericColumn _ -> [ align "right" ]
-      _ -> []
+      NumericColumn _ -> [ class "numeric" ]
+      _ -> [ class "non-numeric" ]
   )
   (colContentView col)
 

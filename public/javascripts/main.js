@@ -10623,28 +10623,21 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 			return {
 				ctor: '::',
 				_0: _elm_lang$html$Html$text(
-					A2(
-						_elm_lang$core$Basics_ops['++'],
-						_elm_lang$core$String$toLower(
-							_elm_lang$core$Basics$toString(_p3._0)),
-						' ')),
+					_elm_lang$core$String$toLower(
+						_elm_lang$core$Basics$toString(_p3._0))),
 				_1: {ctor: '[]'}
 			};
 		case 'NumericColumn':
 			return {
 				ctor: '::',
 				_0: _elm_lang$html$Html$text(
-					A2(
-						_elm_lang$core$Basics_ops['++'],
-						' ',
-						_elm_lang$core$Basics$toString(_p3._0))),
+					_elm_lang$core$Basics$toString(_p3._0)),
 				_1: {ctor: '[]'}
 			};
 		case 'StringColumn':
 			return {
 				ctor: '::',
-				_0: _elm_lang$html$Html$text(
-					A2(_elm_lang$core$Basics_ops['++'], _p3._0, ' ')),
+				_0: _elm_lang$html$Html$text(_p3._0),
 				_1: {ctor: '[]'}
 			};
 		case 'NullColumn':
@@ -10659,7 +10652,7 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 					},
 					{
 						ctor: '::',
-						_0: _elm_lang$html$Html$text('(null) '),
+						_0: _elm_lang$html$Html$text('(null)'),
 						_1: {ctor: '[]'}
 					}),
 				_1: {ctor: '[]'}
@@ -10768,11 +10761,15 @@ var _connexity$ksql_web$Main$colView = F2(
 				if (_p6.ctor === 'NumericColumn') {
 					return {
 						ctor: '::',
-						_0: _elm_lang$html$Html_Attributes$align('right'),
+						_0: _elm_lang$html$Html_Attributes$class('numeric'),
 						_1: {ctor: '[]'}
 					};
 				} else {
-					return {ctor: '[]'};
+					return {
+						ctor: '::',
+						_0: _elm_lang$html$Html_Attributes$class('non-numeric'),
+						_1: {ctor: '[]'}
+					};
 				}
 			}(),
 			_connexity$ksql_web$Main$colContentView(col));
