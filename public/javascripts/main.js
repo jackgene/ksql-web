@@ -3183,1314 +3183,6 @@ var _elm_lang$core$Dict$diff = F2(
 			t2);
 	});
 
-var _elm_lang$dom$Native_Dom = function() {
-
-var fakeNode = {
-	addEventListener: function() {},
-	removeEventListener: function() {}
-};
-
-var onDocument = on(typeof document !== 'undefined' ? document : fakeNode);
-var onWindow = on(typeof window !== 'undefined' ? window : fakeNode);
-
-function on(node)
-{
-	return function(eventName, decoder, toTask)
-	{
-		return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
-
-			function performTask(event)
-			{
-				var result = A2(_elm_lang$core$Json_Decode$decodeValue, decoder, event);
-				if (result.ctor === 'Ok')
-				{
-					_elm_lang$core$Native_Scheduler.rawSpawn(toTask(result._0));
-				}
-			}
-
-			node.addEventListener(eventName, performTask);
-
-			return function()
-			{
-				node.removeEventListener(eventName, performTask);
-			};
-		});
-	};
-}
-
-var rAF = typeof requestAnimationFrame !== 'undefined'
-	? requestAnimationFrame
-	: function(callback) { callback(); };
-
-function withNode(id, doStuff)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		rAF(function()
-		{
-			var node = document.getElementById(id);
-			if (node === null)
-			{
-				callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NotFound', _0: id }));
-				return;
-			}
-			callback(_elm_lang$core$Native_Scheduler.succeed(doStuff(node)));
-		});
-	});
-}
-
-
-// FOCUS
-
-function focus(id)
-{
-	return withNode(id, function(node) {
-		node.focus();
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function blur(id)
-{
-	return withNode(id, function(node) {
-		node.blur();
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-
-// SCROLLING
-
-function getScrollTop(id)
-{
-	return withNode(id, function(node) {
-		return node.scrollTop;
-	});
-}
-
-function setScrollTop(id, desiredScrollTop)
-{
-	return withNode(id, function(node) {
-		node.scrollTop = desiredScrollTop;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function toBottom(id)
-{
-	return withNode(id, function(node) {
-		node.scrollTop = node.scrollHeight;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function getScrollLeft(id)
-{
-	return withNode(id, function(node) {
-		return node.scrollLeft;
-	});
-}
-
-function setScrollLeft(id, desiredScrollLeft)
-{
-	return withNode(id, function(node) {
-		node.scrollLeft = desiredScrollLeft;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-function toRight(id)
-{
-	return withNode(id, function(node) {
-		node.scrollLeft = node.scrollWidth;
-		return _elm_lang$core$Native_Utils.Tuple0;
-	});
-}
-
-
-// SIZE
-
-function width(options, id)
-{
-	return withNode(id, function(node) {
-		switch (options.ctor)
-		{
-			case 'Content':
-				return node.scrollWidth;
-			case 'VisibleContent':
-				return node.clientWidth;
-			case 'VisibleContentWithBorders':
-				return node.offsetWidth;
-			case 'VisibleContentWithBordersAndMargins':
-				var rect = node.getBoundingClientRect();
-				return rect.right - rect.left;
-		}
-	});
-}
-
-function height(options, id)
-{
-	return withNode(id, function(node) {
-		switch (options.ctor)
-		{
-			case 'Content':
-				return node.scrollHeight;
-			case 'VisibleContent':
-				return node.clientHeight;
-			case 'VisibleContentWithBorders':
-				return node.offsetHeight;
-			case 'VisibleContentWithBordersAndMargins':
-				var rect = node.getBoundingClientRect();
-				return rect.bottom - rect.top;
-		}
-	});
-}
-
-return {
-	onDocument: F3(onDocument),
-	onWindow: F3(onWindow),
-
-	focus: focus,
-	blur: blur,
-
-	getScrollTop: getScrollTop,
-	setScrollTop: F2(setScrollTop),
-	getScrollLeft: getScrollLeft,
-	setScrollLeft: F2(setScrollLeft),
-	toBottom: toBottom,
-	toRight: toRight,
-
-	height: F2(height),
-	width: F2(width)
-};
-
-}();
-
-//import Native.Utils //
-
-var _elm_lang$core$Native_Scheduler = function() {
-
-var MAX_STEPS = 10000;
-
-
-// TASKS
-
-function succeed(value)
-{
-	return {
-		ctor: '_Task_succeed',
-		value: value
-	};
-}
-
-function fail(error)
-{
-	return {
-		ctor: '_Task_fail',
-		value: error
-	};
-}
-
-function nativeBinding(callback)
-{
-	return {
-		ctor: '_Task_nativeBinding',
-		callback: callback,
-		cancel: null
-	};
-}
-
-function andThen(callback, task)
-{
-	return {
-		ctor: '_Task_andThen',
-		callback: callback,
-		task: task
-	};
-}
-
-function onError(callback, task)
-{
-	return {
-		ctor: '_Task_onError',
-		callback: callback,
-		task: task
-	};
-}
-
-function receive(callback)
-{
-	return {
-		ctor: '_Task_receive',
-		callback: callback
-	};
-}
-
-
-// PROCESSES
-
-function rawSpawn(task)
-{
-	var process = {
-		ctor: '_Process',
-		id: _elm_lang$core$Native_Utils.guid(),
-		root: task,
-		stack: null,
-		mailbox: []
-	};
-
-	enqueue(process);
-
-	return process;
-}
-
-function spawn(task)
-{
-	return nativeBinding(function(callback) {
-		var process = rawSpawn(task);
-		callback(succeed(process));
-	});
-}
-
-function rawSend(process, msg)
-{
-	process.mailbox.push(msg);
-	enqueue(process);
-}
-
-function send(process, msg)
-{
-	return nativeBinding(function(callback) {
-		rawSend(process, msg);
-		callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
-	});
-}
-
-function kill(process)
-{
-	return nativeBinding(function(callback) {
-		var root = process.root;
-		if (root.ctor === '_Task_nativeBinding' && root.cancel)
-		{
-			root.cancel();
-		}
-
-		process.root = null;
-
-		callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
-	});
-}
-
-function sleep(time)
-{
-	return nativeBinding(function(callback) {
-		var id = setTimeout(function() {
-			callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
-		}, time);
-
-		return function() { clearTimeout(id); };
-	});
-}
-
-
-// STEP PROCESSES
-
-function step(numSteps, process)
-{
-	while (numSteps < MAX_STEPS)
-	{
-		var ctor = process.root.ctor;
-
-		if (ctor === '_Task_succeed')
-		{
-			while (process.stack && process.stack.ctor === '_Task_onError')
-			{
-				process.stack = process.stack.rest;
-			}
-			if (process.stack === null)
-			{
-				break;
-			}
-			process.root = process.stack.callback(process.root.value);
-			process.stack = process.stack.rest;
-			++numSteps;
-			continue;
-		}
-
-		if (ctor === '_Task_fail')
-		{
-			while (process.stack && process.stack.ctor === '_Task_andThen')
-			{
-				process.stack = process.stack.rest;
-			}
-			if (process.stack === null)
-			{
-				break;
-			}
-			process.root = process.stack.callback(process.root.value);
-			process.stack = process.stack.rest;
-			++numSteps;
-			continue;
-		}
-
-		if (ctor === '_Task_andThen')
-		{
-			process.stack = {
-				ctor: '_Task_andThen',
-				callback: process.root.callback,
-				rest: process.stack
-			};
-			process.root = process.root.task;
-			++numSteps;
-			continue;
-		}
-
-		if (ctor === '_Task_onError')
-		{
-			process.stack = {
-				ctor: '_Task_onError',
-				callback: process.root.callback,
-				rest: process.stack
-			};
-			process.root = process.root.task;
-			++numSteps;
-			continue;
-		}
-
-		if (ctor === '_Task_nativeBinding')
-		{
-			process.root.cancel = process.root.callback(function(newRoot) {
-				process.root = newRoot;
-				enqueue(process);
-			});
-
-			break;
-		}
-
-		if (ctor === '_Task_receive')
-		{
-			var mailbox = process.mailbox;
-			if (mailbox.length === 0)
-			{
-				break;
-			}
-
-			process.root = process.root.callback(mailbox.shift());
-			++numSteps;
-			continue;
-		}
-
-		throw new Error(ctor);
-	}
-
-	if (numSteps < MAX_STEPS)
-	{
-		return numSteps + 1;
-	}
-	enqueue(process);
-
-	return numSteps;
-}
-
-
-// WORK QUEUE
-
-var working = false;
-var workQueue = [];
-
-function enqueue(process)
-{
-	workQueue.push(process);
-
-	if (!working)
-	{
-		setTimeout(work, 0);
-		working = true;
-	}
-}
-
-function work()
-{
-	var numSteps = 0;
-	var process;
-	while (numSteps < MAX_STEPS && (process = workQueue.shift()))
-	{
-		if (process.root)
-		{
-			numSteps = step(numSteps, process);
-		}
-	}
-	if (!process)
-	{
-		working = false;
-		return;
-	}
-	setTimeout(work, 0);
-}
-
-
-return {
-	succeed: succeed,
-	fail: fail,
-	nativeBinding: nativeBinding,
-	andThen: F2(andThen),
-	onError: F2(onError),
-	receive: receive,
-
-	spawn: spawn,
-	kill: kill,
-	sleep: sleep,
-	send: F2(send),
-
-	rawSpawn: rawSpawn,
-	rawSend: rawSend
-};
-
-}();
-//import //
-
-var _elm_lang$core$Native_Platform = function() {
-
-
-// PROGRAMS
-
-function program(impl)
-{
-	return function(flagDecoder)
-	{
-		return function(object, moduleName)
-		{
-			object['worker'] = function worker(flags)
-			{
-				if (typeof flags !== 'undefined')
-				{
-					throw new Error(
-						'The `' + moduleName + '` module does not need flags.\n'
-						+ 'Call ' + moduleName + '.worker() with no arguments and you should be all set!'
-					);
-				}
-
-				return initialize(
-					impl.init,
-					impl.update,
-					impl.subscriptions,
-					renderer
-				);
-			};
-		};
-	};
-}
-
-function programWithFlags(impl)
-{
-	return function(flagDecoder)
-	{
-		return function(object, moduleName)
-		{
-			object['worker'] = function worker(flags)
-			{
-				if (typeof flagDecoder === 'undefined')
-				{
-					throw new Error(
-						'Are you trying to sneak a Never value into Elm? Trickster!\n'
-						+ 'It looks like ' + moduleName + '.main is defined with `programWithFlags` but has type `Program Never`.\n'
-						+ 'Use `program` instead if you do not want flags.'
-					);
-				}
-
-				var result = A2(_elm_lang$core$Native_Json.run, flagDecoder, flags);
-				if (result.ctor === 'Err')
-				{
-					throw new Error(
-						moduleName + '.worker(...) was called with an unexpected argument.\n'
-						+ 'I tried to convert it to an Elm value, but ran into this problem:\n\n'
-						+ result._0
-					);
-				}
-
-				return initialize(
-					impl.init(result._0),
-					impl.update,
-					impl.subscriptions,
-					renderer
-				);
-			};
-		};
-	};
-}
-
-function renderer(enqueue, _)
-{
-	return function(_) {};
-}
-
-
-// HTML TO PROGRAM
-
-function htmlToProgram(vnode)
-{
-	var emptyBag = batch(_elm_lang$core$Native_List.Nil);
-	var noChange = _elm_lang$core$Native_Utils.Tuple2(
-		_elm_lang$core$Native_Utils.Tuple0,
-		emptyBag
-	);
-
-	return _elm_lang$virtual_dom$VirtualDom$program({
-		init: noChange,
-		view: function(model) { return main; },
-		update: F2(function(msg, model) { return noChange; }),
-		subscriptions: function (model) { return emptyBag; }
-	});
-}
-
-
-// INITIALIZE A PROGRAM
-
-function initialize(init, update, subscriptions, renderer)
-{
-	// ambient state
-	var managers = {};
-	var updateView;
-
-	// init and update state in main process
-	var initApp = _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
-		var model = init._0;
-		updateView = renderer(enqueue, model);
-		var cmds = init._1;
-		var subs = subscriptions(model);
-		dispatchEffects(managers, cmds, subs);
-		callback(_elm_lang$core$Native_Scheduler.succeed(model));
-	});
-
-	function onMessage(msg, model)
-	{
-		return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
-			var results = A2(update, msg, model);
-			model = results._0;
-			updateView(model);
-			var cmds = results._1;
-			var subs = subscriptions(model);
-			dispatchEffects(managers, cmds, subs);
-			callback(_elm_lang$core$Native_Scheduler.succeed(model));
-		});
-	}
-
-	var mainProcess = spawnLoop(initApp, onMessage);
-
-	function enqueue(msg)
-	{
-		_elm_lang$core$Native_Scheduler.rawSend(mainProcess, msg);
-	}
-
-	var ports = setupEffects(managers, enqueue);
-
-	return ports ? { ports: ports } : {};
-}
-
-
-// EFFECT MANAGERS
-
-var effectManagers = {};
-
-function setupEffects(managers, callback)
-{
-	var ports;
-
-	// setup all necessary effect managers
-	for (var key in effectManagers)
-	{
-		var manager = effectManagers[key];
-
-		if (manager.isForeign)
-		{
-			ports = ports || {};
-			ports[key] = manager.tag === 'cmd'
-				? setupOutgoingPort(key)
-				: setupIncomingPort(key, callback);
-		}
-
-		managers[key] = makeManager(manager, callback);
-	}
-
-	return ports;
-}
-
-function makeManager(info, callback)
-{
-	var router = {
-		main: callback,
-		self: undefined
-	};
-
-	var tag = info.tag;
-	var onEffects = info.onEffects;
-	var onSelfMsg = info.onSelfMsg;
-
-	function onMessage(msg, state)
-	{
-		if (msg.ctor === 'self')
-		{
-			return A3(onSelfMsg, router, msg._0, state);
-		}
-
-		var fx = msg._0;
-		switch (tag)
-		{
-			case 'cmd':
-				return A3(onEffects, router, fx.cmds, state);
-
-			case 'sub':
-				return A3(onEffects, router, fx.subs, state);
-
-			case 'fx':
-				return A4(onEffects, router, fx.cmds, fx.subs, state);
-		}
-	}
-
-	var process = spawnLoop(info.init, onMessage);
-	router.self = process;
-	return process;
-}
-
-function sendToApp(router, msg)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		router.main(msg);
-		callback(_elm_lang$core$Native_Scheduler.succeed(_elm_lang$core$Native_Utils.Tuple0));
-	});
-}
-
-function sendToSelf(router, msg)
-{
-	return A2(_elm_lang$core$Native_Scheduler.send, router.self, {
-		ctor: 'self',
-		_0: msg
-	});
-}
-
-
-// HELPER for STATEFUL LOOPS
-
-function spawnLoop(init, onMessage)
-{
-	var andThen = _elm_lang$core$Native_Scheduler.andThen;
-
-	function loop(state)
-	{
-		var handleMsg = _elm_lang$core$Native_Scheduler.receive(function(msg) {
-			return onMessage(msg, state);
-		});
-		return A2(andThen, loop, handleMsg);
-	}
-
-	var task = A2(andThen, loop, init);
-
-	return _elm_lang$core$Native_Scheduler.rawSpawn(task);
-}
-
-
-// BAGS
-
-function leaf(home)
-{
-	return function(value)
-	{
-		return {
-			type: 'leaf',
-			home: home,
-			value: value
-		};
-	};
-}
-
-function batch(list)
-{
-	return {
-		type: 'node',
-		branches: list
-	};
-}
-
-function map(tagger, bag)
-{
-	return {
-		type: 'map',
-		tagger: tagger,
-		tree: bag
-	}
-}
-
-
-// PIPE BAGS INTO EFFECT MANAGERS
-
-function dispatchEffects(managers, cmdBag, subBag)
-{
-	var effectsDict = {};
-	gatherEffects(true, cmdBag, effectsDict, null);
-	gatherEffects(false, subBag, effectsDict, null);
-
-	for (var home in managers)
-	{
-		var fx = home in effectsDict
-			? effectsDict[home]
-			: {
-				cmds: _elm_lang$core$Native_List.Nil,
-				subs: _elm_lang$core$Native_List.Nil
-			};
-
-		_elm_lang$core$Native_Scheduler.rawSend(managers[home], { ctor: 'fx', _0: fx });
-	}
-}
-
-function gatherEffects(isCmd, bag, effectsDict, taggers)
-{
-	switch (bag.type)
-	{
-		case 'leaf':
-			var home = bag.home;
-			var effect = toEffect(isCmd, home, taggers, bag.value);
-			effectsDict[home] = insert(isCmd, effect, effectsDict[home]);
-			return;
-
-		case 'node':
-			var list = bag.branches;
-			while (list.ctor !== '[]')
-			{
-				gatherEffects(isCmd, list._0, effectsDict, taggers);
-				list = list._1;
-			}
-			return;
-
-		case 'map':
-			gatherEffects(isCmd, bag.tree, effectsDict, {
-				tagger: bag.tagger,
-				rest: taggers
-			});
-			return;
-	}
-}
-
-function toEffect(isCmd, home, taggers, value)
-{
-	function applyTaggers(x)
-	{
-		var temp = taggers;
-		while (temp)
-		{
-			x = temp.tagger(x);
-			temp = temp.rest;
-		}
-		return x;
-	}
-
-	var map = isCmd
-		? effectManagers[home].cmdMap
-		: effectManagers[home].subMap;
-
-	return A2(map, applyTaggers, value)
-}
-
-function insert(isCmd, newEffect, effects)
-{
-	effects = effects || {
-		cmds: _elm_lang$core$Native_List.Nil,
-		subs: _elm_lang$core$Native_List.Nil
-	};
-	if (isCmd)
-	{
-		effects.cmds = _elm_lang$core$Native_List.Cons(newEffect, effects.cmds);
-		return effects;
-	}
-	effects.subs = _elm_lang$core$Native_List.Cons(newEffect, effects.subs);
-	return effects;
-}
-
-
-// PORTS
-
-function checkPortName(name)
-{
-	if (name in effectManagers)
-	{
-		throw new Error('There can only be one port named `' + name + '`, but your program has multiple.');
-	}
-}
-
-
-// OUTGOING PORTS
-
-function outgoingPort(name, converter)
-{
-	checkPortName(name);
-	effectManagers[name] = {
-		tag: 'cmd',
-		cmdMap: outgoingPortMap,
-		converter: converter,
-		isForeign: true
-	};
-	return leaf(name);
-}
-
-var outgoingPortMap = F2(function cmdMap(tagger, value) {
-	return value;
-});
-
-function setupOutgoingPort(name)
-{
-	var subs = [];
-	var converter = effectManagers[name].converter;
-
-	// CREATE MANAGER
-
-	var init = _elm_lang$core$Native_Scheduler.succeed(null);
-
-	function onEffects(router, cmdList, state)
-	{
-		while (cmdList.ctor !== '[]')
-		{
-			// grab a separate reference to subs in case unsubscribe is called
-			var currentSubs = subs;
-			var value = converter(cmdList._0);
-			for (var i = 0; i < currentSubs.length; i++)
-			{
-				currentSubs[i](value);
-			}
-			cmdList = cmdList._1;
-		}
-		return init;
-	}
-
-	effectManagers[name].init = init;
-	effectManagers[name].onEffects = F3(onEffects);
-
-	// PUBLIC API
-
-	function subscribe(callback)
-	{
-		subs.push(callback);
-	}
-
-	function unsubscribe(callback)
-	{
-		// copy subs into a new array in case unsubscribe is called within a
-		// subscribed callback
-		subs = subs.slice();
-		var index = subs.indexOf(callback);
-		if (index >= 0)
-		{
-			subs.splice(index, 1);
-		}
-	}
-
-	return {
-		subscribe: subscribe,
-		unsubscribe: unsubscribe
-	};
-}
-
-
-// INCOMING PORTS
-
-function incomingPort(name, converter)
-{
-	checkPortName(name);
-	effectManagers[name] = {
-		tag: 'sub',
-		subMap: incomingPortMap,
-		converter: converter,
-		isForeign: true
-	};
-	return leaf(name);
-}
-
-var incomingPortMap = F2(function subMap(tagger, finalTagger)
-{
-	return function(value)
-	{
-		return tagger(finalTagger(value));
-	};
-});
-
-function setupIncomingPort(name, callback)
-{
-	var sentBeforeInit = [];
-	var subs = _elm_lang$core$Native_List.Nil;
-	var converter = effectManagers[name].converter;
-	var currentOnEffects = preInitOnEffects;
-	var currentSend = preInitSend;
-
-	// CREATE MANAGER
-
-	var init = _elm_lang$core$Native_Scheduler.succeed(null);
-
-	function preInitOnEffects(router, subList, state)
-	{
-		var postInitResult = postInitOnEffects(router, subList, state);
-
-		for(var i = 0; i < sentBeforeInit.length; i++)
-		{
-			postInitSend(sentBeforeInit[i]);
-		}
-
-		sentBeforeInit = null; // to release objects held in queue
-		currentSend = postInitSend;
-		currentOnEffects = postInitOnEffects;
-		return postInitResult;
-	}
-
-	function postInitOnEffects(router, subList, state)
-	{
-		subs = subList;
-		return init;
-	}
-
-	function onEffects(router, subList, state)
-	{
-		return currentOnEffects(router, subList, state);
-	}
-
-	effectManagers[name].init = init;
-	effectManagers[name].onEffects = F3(onEffects);
-
-	// PUBLIC API
-
-	function preInitSend(value)
-	{
-		sentBeforeInit.push(value);
-	}
-
-	function postInitSend(value)
-	{
-		var temp = subs;
-		while (temp.ctor !== '[]')
-		{
-			callback(temp._0(value));
-			temp = temp._1;
-		}
-	}
-
-	function send(incomingValue)
-	{
-		var result = A2(_elm_lang$core$Json_Decode$decodeValue, converter, incomingValue);
-		if (result.ctor === 'Err')
-		{
-			throw new Error('Trying to send an unexpected type of value through port `' + name + '`:\n' + result._0);
-		}
-
-		currentSend(result._0);
-	}
-
-	return { send: send };
-}
-
-return {
-	// routers
-	sendToApp: F2(sendToApp),
-	sendToSelf: F2(sendToSelf),
-
-	// global setup
-	effectManagers: effectManagers,
-	outgoingPort: outgoingPort,
-	incomingPort: incomingPort,
-
-	htmlToProgram: htmlToProgram,
-	program: program,
-	programWithFlags: programWithFlags,
-	initialize: initialize,
-
-	// effect bags
-	leaf: leaf,
-	batch: batch,
-	map: F2(map)
-};
-
-}();
-
-var _elm_lang$core$Platform_Cmd$batch = _elm_lang$core$Native_Platform.batch;
-var _elm_lang$core$Platform_Cmd$none = _elm_lang$core$Platform_Cmd$batch(
-	{ctor: '[]'});
-var _elm_lang$core$Platform_Cmd_ops = _elm_lang$core$Platform_Cmd_ops || {};
-_elm_lang$core$Platform_Cmd_ops['!'] = F2(
-	function (model, commands) {
-		return {
-			ctor: '_Tuple2',
-			_0: model,
-			_1: _elm_lang$core$Platform_Cmd$batch(commands)
-		};
-	});
-var _elm_lang$core$Platform_Cmd$map = _elm_lang$core$Native_Platform.map;
-var _elm_lang$core$Platform_Cmd$Cmd = {ctor: 'Cmd'};
-
-var _elm_lang$core$Platform_Sub$batch = _elm_lang$core$Native_Platform.batch;
-var _elm_lang$core$Platform_Sub$none = _elm_lang$core$Platform_Sub$batch(
-	{ctor: '[]'});
-var _elm_lang$core$Platform_Sub$map = _elm_lang$core$Native_Platform.map;
-var _elm_lang$core$Platform_Sub$Sub = {ctor: 'Sub'};
-
-var _elm_lang$core$Platform$hack = _elm_lang$core$Native_Scheduler.succeed;
-var _elm_lang$core$Platform$sendToSelf = _elm_lang$core$Native_Platform.sendToSelf;
-var _elm_lang$core$Platform$sendToApp = _elm_lang$core$Native_Platform.sendToApp;
-var _elm_lang$core$Platform$programWithFlags = _elm_lang$core$Native_Platform.programWithFlags;
-var _elm_lang$core$Platform$program = _elm_lang$core$Native_Platform.program;
-var _elm_lang$core$Platform$Program = {ctor: 'Program'};
-var _elm_lang$core$Platform$Task = {ctor: 'Task'};
-var _elm_lang$core$Platform$ProcessId = {ctor: 'ProcessId'};
-var _elm_lang$core$Platform$Router = {ctor: 'Router'};
-
-var _elm_lang$core$Task$onError = _elm_lang$core$Native_Scheduler.onError;
-var _elm_lang$core$Task$andThen = _elm_lang$core$Native_Scheduler.andThen;
-var _elm_lang$core$Task$spawnCmd = F2(
-	function (router, _p0) {
-		var _p1 = _p0;
-		return _elm_lang$core$Native_Scheduler.spawn(
-			A2(
-				_elm_lang$core$Task$andThen,
-				_elm_lang$core$Platform$sendToApp(router),
-				_p1._0));
-	});
-var _elm_lang$core$Task$fail = _elm_lang$core$Native_Scheduler.fail;
-var _elm_lang$core$Task$mapError = F2(
-	function (convert, task) {
-		return A2(
-			_elm_lang$core$Task$onError,
-			function (_p2) {
-				return _elm_lang$core$Task$fail(
-					convert(_p2));
-			},
-			task);
-	});
-var _elm_lang$core$Task$succeed = _elm_lang$core$Native_Scheduler.succeed;
-var _elm_lang$core$Task$map = F2(
-	function (func, taskA) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (a) {
-				return _elm_lang$core$Task$succeed(
-					func(a));
-			},
-			taskA);
-	});
-var _elm_lang$core$Task$map2 = F3(
-	function (func, taskA, taskB) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (a) {
-				return A2(
-					_elm_lang$core$Task$andThen,
-					function (b) {
-						return _elm_lang$core$Task$succeed(
-							A2(func, a, b));
-					},
-					taskB);
-			},
-			taskA);
-	});
-var _elm_lang$core$Task$map3 = F4(
-	function (func, taskA, taskB, taskC) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (a) {
-				return A2(
-					_elm_lang$core$Task$andThen,
-					function (b) {
-						return A2(
-							_elm_lang$core$Task$andThen,
-							function (c) {
-								return _elm_lang$core$Task$succeed(
-									A3(func, a, b, c));
-							},
-							taskC);
-					},
-					taskB);
-			},
-			taskA);
-	});
-var _elm_lang$core$Task$map4 = F5(
-	function (func, taskA, taskB, taskC, taskD) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (a) {
-				return A2(
-					_elm_lang$core$Task$andThen,
-					function (b) {
-						return A2(
-							_elm_lang$core$Task$andThen,
-							function (c) {
-								return A2(
-									_elm_lang$core$Task$andThen,
-									function (d) {
-										return _elm_lang$core$Task$succeed(
-											A4(func, a, b, c, d));
-									},
-									taskD);
-							},
-							taskC);
-					},
-					taskB);
-			},
-			taskA);
-	});
-var _elm_lang$core$Task$map5 = F6(
-	function (func, taskA, taskB, taskC, taskD, taskE) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (a) {
-				return A2(
-					_elm_lang$core$Task$andThen,
-					function (b) {
-						return A2(
-							_elm_lang$core$Task$andThen,
-							function (c) {
-								return A2(
-									_elm_lang$core$Task$andThen,
-									function (d) {
-										return A2(
-											_elm_lang$core$Task$andThen,
-											function (e) {
-												return _elm_lang$core$Task$succeed(
-													A5(func, a, b, c, d, e));
-											},
-											taskE);
-									},
-									taskD);
-							},
-							taskC);
-					},
-					taskB);
-			},
-			taskA);
-	});
-var _elm_lang$core$Task$sequence = function (tasks) {
-	var _p3 = tasks;
-	if (_p3.ctor === '[]') {
-		return _elm_lang$core$Task$succeed(
-			{ctor: '[]'});
-	} else {
-		return A3(
-			_elm_lang$core$Task$map2,
-			F2(
-				function (x, y) {
-					return {ctor: '::', _0: x, _1: y};
-				}),
-			_p3._0,
-			_elm_lang$core$Task$sequence(_p3._1));
-	}
-};
-var _elm_lang$core$Task$onEffects = F3(
-	function (router, commands, state) {
-		return A2(
-			_elm_lang$core$Task$map,
-			function (_p4) {
-				return {ctor: '_Tuple0'};
-			},
-			_elm_lang$core$Task$sequence(
-				A2(
-					_elm_lang$core$List$map,
-					_elm_lang$core$Task$spawnCmd(router),
-					commands)));
-	});
-var _elm_lang$core$Task$init = _elm_lang$core$Task$succeed(
-	{ctor: '_Tuple0'});
-var _elm_lang$core$Task$onSelfMsg = F3(
-	function (_p7, _p6, _p5) {
-		return _elm_lang$core$Task$succeed(
-			{ctor: '_Tuple0'});
-	});
-var _elm_lang$core$Task$command = _elm_lang$core$Native_Platform.leaf('Task');
-var _elm_lang$core$Task$Perform = function (a) {
-	return {ctor: 'Perform', _0: a};
-};
-var _elm_lang$core$Task$perform = F2(
-	function (toMessage, task) {
-		return _elm_lang$core$Task$command(
-			_elm_lang$core$Task$Perform(
-				A2(_elm_lang$core$Task$map, toMessage, task)));
-	});
-var _elm_lang$core$Task$attempt = F2(
-	function (resultToMessage, task) {
-		return _elm_lang$core$Task$command(
-			_elm_lang$core$Task$Perform(
-				A2(
-					_elm_lang$core$Task$onError,
-					function (_p8) {
-						return _elm_lang$core$Task$succeed(
-							resultToMessage(
-								_elm_lang$core$Result$Err(_p8)));
-					},
-					A2(
-						_elm_lang$core$Task$andThen,
-						function (_p9) {
-							return _elm_lang$core$Task$succeed(
-								resultToMessage(
-									_elm_lang$core$Result$Ok(_p9)));
-						},
-						task))));
-	});
-var _elm_lang$core$Task$cmdMap = F2(
-	function (tagger, _p10) {
-		var _p11 = _p10;
-		return _elm_lang$core$Task$Perform(
-			A2(_elm_lang$core$Task$map, tagger, _p11._0));
-	});
-_elm_lang$core$Native_Platform.effectManagers['Task'] = {pkg: 'elm-lang/core', init: _elm_lang$core$Task$init, onEffects: _elm_lang$core$Task$onEffects, onSelfMsg: _elm_lang$core$Task$onSelfMsg, tag: 'cmd', cmdMap: _elm_lang$core$Task$cmdMap};
-
-var _elm_lang$core$Debug$crash = _elm_lang$core$Native_Debug.crash;
-var _elm_lang$core$Debug$log = _elm_lang$core$Native_Debug.log;
-
-var _elm_lang$core$Tuple$mapSecond = F2(
-	function (func, _p0) {
-		var _p1 = _p0;
-		return {
-			ctor: '_Tuple2',
-			_0: _p1._0,
-			_1: func(_p1._1)
-		};
-	});
-var _elm_lang$core$Tuple$mapFirst = F2(
-	function (func, _p2) {
-		var _p3 = _p2;
-		return {
-			ctor: '_Tuple2',
-			_0: func(_p3._0),
-			_1: _p3._1
-		};
-	});
-var _elm_lang$core$Tuple$second = function (_p4) {
-	var _p5 = _p4;
-	return _p5._1;
-};
-var _elm_lang$core$Tuple$first = function (_p6) {
-	var _p7 = _p6;
-	return _p7._0;
-};
-
-var _elm_lang$dom$Dom$blur = _elm_lang$dom$Native_Dom.blur;
-var _elm_lang$dom$Dom$focus = _elm_lang$dom$Native_Dom.focus;
-var _elm_lang$dom$Dom$NotFound = function (a) {
-	return {ctor: 'NotFound', _0: a};
-};
-
-var _elm_lang$dom$Dom_Size$width = _elm_lang$dom$Native_Dom.width;
-var _elm_lang$dom$Dom_Size$height = _elm_lang$dom$Native_Dom.height;
-var _elm_lang$dom$Dom_Size$VisibleContentWithBordersAndMargins = {ctor: 'VisibleContentWithBordersAndMargins'};
-var _elm_lang$dom$Dom_Size$VisibleContentWithBorders = {ctor: 'VisibleContentWithBorders'};
-var _elm_lang$dom$Dom_Size$VisibleContent = {ctor: 'VisibleContent'};
-var _elm_lang$dom$Dom_Size$Content = {ctor: 'Content'};
-
-var _elm_lang$dom$Dom_Scroll$toX = _elm_lang$dom$Native_Dom.setScrollLeft;
-var _elm_lang$dom$Dom_Scroll$x = _elm_lang$dom$Native_Dom.getScrollLeft;
-var _elm_lang$dom$Dom_Scroll$toRight = _elm_lang$dom$Native_Dom.toRight;
-var _elm_lang$dom$Dom_Scroll$toLeft = function (id) {
-	return A2(_elm_lang$dom$Dom_Scroll$toX, id, 0);
-};
-var _elm_lang$dom$Dom_Scroll$toY = _elm_lang$dom$Native_Dom.setScrollTop;
-var _elm_lang$dom$Dom_Scroll$y = _elm_lang$dom$Native_Dom.getScrollTop;
-var _elm_lang$dom$Dom_Scroll$toBottom = _elm_lang$dom$Native_Dom.toBottom;
-var _elm_lang$dom$Dom_Scroll$toTop = function (id) {
-	return A2(_elm_lang$dom$Dom_Scroll$toY, id, 0);
-};
-
 //import Native.List //
 
 var _elm_lang$core$Native_Array = function() {
@@ -6100,6 +4792,2363 @@ var _elm_lang$core$Json_Encode$string = _elm_lang$core$Native_Json.identity;
 var _elm_lang$core$Json_Encode$encode = _elm_lang$core$Native_Json.encode;
 var _elm_lang$core$Json_Encode$Value = {ctor: 'Value'};
 
+var _elm_lang$core$Debug$crash = _elm_lang$core$Native_Debug.crash;
+var _elm_lang$core$Debug$log = _elm_lang$core$Native_Debug.log;
+
+var _elm_lang$core$Tuple$mapSecond = F2(
+	function (func, _p0) {
+		var _p1 = _p0;
+		return {
+			ctor: '_Tuple2',
+			_0: _p1._0,
+			_1: func(_p1._1)
+		};
+	});
+var _elm_lang$core$Tuple$mapFirst = F2(
+	function (func, _p2) {
+		var _p3 = _p2;
+		return {
+			ctor: '_Tuple2',
+			_0: func(_p3._0),
+			_1: _p3._1
+		};
+	});
+var _elm_lang$core$Tuple$second = function (_p4) {
+	var _p5 = _p4;
+	return _p5._1;
+};
+var _elm_lang$core$Tuple$first = function (_p6) {
+	var _p7 = _p6;
+	return _p7._0;
+};
+
+//import //
+
+var _elm_lang$core$Native_Platform = function() {
+
+
+// PROGRAMS
+
+function program(impl)
+{
+	return function(flagDecoder)
+	{
+		return function(object, moduleName)
+		{
+			object['worker'] = function worker(flags)
+			{
+				if (typeof flags !== 'undefined')
+				{
+					throw new Error(
+						'The `' + moduleName + '` module does not need flags.\n'
+						+ 'Call ' + moduleName + '.worker() with no arguments and you should be all set!'
+					);
+				}
+
+				return initialize(
+					impl.init,
+					impl.update,
+					impl.subscriptions,
+					renderer
+				);
+			};
+		};
+	};
+}
+
+function programWithFlags(impl)
+{
+	return function(flagDecoder)
+	{
+		return function(object, moduleName)
+		{
+			object['worker'] = function worker(flags)
+			{
+				if (typeof flagDecoder === 'undefined')
+				{
+					throw new Error(
+						'Are you trying to sneak a Never value into Elm? Trickster!\n'
+						+ 'It looks like ' + moduleName + '.main is defined with `programWithFlags` but has type `Program Never`.\n'
+						+ 'Use `program` instead if you do not want flags.'
+					);
+				}
+
+				var result = A2(_elm_lang$core$Native_Json.run, flagDecoder, flags);
+				if (result.ctor === 'Err')
+				{
+					throw new Error(
+						moduleName + '.worker(...) was called with an unexpected argument.\n'
+						+ 'I tried to convert it to an Elm value, but ran into this problem:\n\n'
+						+ result._0
+					);
+				}
+
+				return initialize(
+					impl.init(result._0),
+					impl.update,
+					impl.subscriptions,
+					renderer
+				);
+			};
+		};
+	};
+}
+
+function renderer(enqueue, _)
+{
+	return function(_) {};
+}
+
+
+// HTML TO PROGRAM
+
+function htmlToProgram(vnode)
+{
+	var emptyBag = batch(_elm_lang$core$Native_List.Nil);
+	var noChange = _elm_lang$core$Native_Utils.Tuple2(
+		_elm_lang$core$Native_Utils.Tuple0,
+		emptyBag
+	);
+
+	return _elm_lang$virtual_dom$VirtualDom$program({
+		init: noChange,
+		view: function(model) { return main; },
+		update: F2(function(msg, model) { return noChange; }),
+		subscriptions: function (model) { return emptyBag; }
+	});
+}
+
+
+// INITIALIZE A PROGRAM
+
+function initialize(init, update, subscriptions, renderer)
+{
+	// ambient state
+	var managers = {};
+	var updateView;
+
+	// init and update state in main process
+	var initApp = _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+		var model = init._0;
+		updateView = renderer(enqueue, model);
+		var cmds = init._1;
+		var subs = subscriptions(model);
+		dispatchEffects(managers, cmds, subs);
+		callback(_elm_lang$core$Native_Scheduler.succeed(model));
+	});
+
+	function onMessage(msg, model)
+	{
+		return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+			var results = A2(update, msg, model);
+			model = results._0;
+			updateView(model);
+			var cmds = results._1;
+			var subs = subscriptions(model);
+			dispatchEffects(managers, cmds, subs);
+			callback(_elm_lang$core$Native_Scheduler.succeed(model));
+		});
+	}
+
+	var mainProcess = spawnLoop(initApp, onMessage);
+
+	function enqueue(msg)
+	{
+		_elm_lang$core$Native_Scheduler.rawSend(mainProcess, msg);
+	}
+
+	var ports = setupEffects(managers, enqueue);
+
+	return ports ? { ports: ports } : {};
+}
+
+
+// EFFECT MANAGERS
+
+var effectManagers = {};
+
+function setupEffects(managers, callback)
+{
+	var ports;
+
+	// setup all necessary effect managers
+	for (var key in effectManagers)
+	{
+		var manager = effectManagers[key];
+
+		if (manager.isForeign)
+		{
+			ports = ports || {};
+			ports[key] = manager.tag === 'cmd'
+				? setupOutgoingPort(key)
+				: setupIncomingPort(key, callback);
+		}
+
+		managers[key] = makeManager(manager, callback);
+	}
+
+	return ports;
+}
+
+function makeManager(info, callback)
+{
+	var router = {
+		main: callback,
+		self: undefined
+	};
+
+	var tag = info.tag;
+	var onEffects = info.onEffects;
+	var onSelfMsg = info.onSelfMsg;
+
+	function onMessage(msg, state)
+	{
+		if (msg.ctor === 'self')
+		{
+			return A3(onSelfMsg, router, msg._0, state);
+		}
+
+		var fx = msg._0;
+		switch (tag)
+		{
+			case 'cmd':
+				return A3(onEffects, router, fx.cmds, state);
+
+			case 'sub':
+				return A3(onEffects, router, fx.subs, state);
+
+			case 'fx':
+				return A4(onEffects, router, fx.cmds, fx.subs, state);
+		}
+	}
+
+	var process = spawnLoop(info.init, onMessage);
+	router.self = process;
+	return process;
+}
+
+function sendToApp(router, msg)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		router.main(msg);
+		callback(_elm_lang$core$Native_Scheduler.succeed(_elm_lang$core$Native_Utils.Tuple0));
+	});
+}
+
+function sendToSelf(router, msg)
+{
+	return A2(_elm_lang$core$Native_Scheduler.send, router.self, {
+		ctor: 'self',
+		_0: msg
+	});
+}
+
+
+// HELPER for STATEFUL LOOPS
+
+function spawnLoop(init, onMessage)
+{
+	var andThen = _elm_lang$core$Native_Scheduler.andThen;
+
+	function loop(state)
+	{
+		var handleMsg = _elm_lang$core$Native_Scheduler.receive(function(msg) {
+			return onMessage(msg, state);
+		});
+		return A2(andThen, loop, handleMsg);
+	}
+
+	var task = A2(andThen, loop, init);
+
+	return _elm_lang$core$Native_Scheduler.rawSpawn(task);
+}
+
+
+// BAGS
+
+function leaf(home)
+{
+	return function(value)
+	{
+		return {
+			type: 'leaf',
+			home: home,
+			value: value
+		};
+	};
+}
+
+function batch(list)
+{
+	return {
+		type: 'node',
+		branches: list
+	};
+}
+
+function map(tagger, bag)
+{
+	return {
+		type: 'map',
+		tagger: tagger,
+		tree: bag
+	}
+}
+
+
+// PIPE BAGS INTO EFFECT MANAGERS
+
+function dispatchEffects(managers, cmdBag, subBag)
+{
+	var effectsDict = {};
+	gatherEffects(true, cmdBag, effectsDict, null);
+	gatherEffects(false, subBag, effectsDict, null);
+
+	for (var home in managers)
+	{
+		var fx = home in effectsDict
+			? effectsDict[home]
+			: {
+				cmds: _elm_lang$core$Native_List.Nil,
+				subs: _elm_lang$core$Native_List.Nil
+			};
+
+		_elm_lang$core$Native_Scheduler.rawSend(managers[home], { ctor: 'fx', _0: fx });
+	}
+}
+
+function gatherEffects(isCmd, bag, effectsDict, taggers)
+{
+	switch (bag.type)
+	{
+		case 'leaf':
+			var home = bag.home;
+			var effect = toEffect(isCmd, home, taggers, bag.value);
+			effectsDict[home] = insert(isCmd, effect, effectsDict[home]);
+			return;
+
+		case 'node':
+			var list = bag.branches;
+			while (list.ctor !== '[]')
+			{
+				gatherEffects(isCmd, list._0, effectsDict, taggers);
+				list = list._1;
+			}
+			return;
+
+		case 'map':
+			gatherEffects(isCmd, bag.tree, effectsDict, {
+				tagger: bag.tagger,
+				rest: taggers
+			});
+			return;
+	}
+}
+
+function toEffect(isCmd, home, taggers, value)
+{
+	function applyTaggers(x)
+	{
+		var temp = taggers;
+		while (temp)
+		{
+			x = temp.tagger(x);
+			temp = temp.rest;
+		}
+		return x;
+	}
+
+	var map = isCmd
+		? effectManagers[home].cmdMap
+		: effectManagers[home].subMap;
+
+	return A2(map, applyTaggers, value)
+}
+
+function insert(isCmd, newEffect, effects)
+{
+	effects = effects || {
+		cmds: _elm_lang$core$Native_List.Nil,
+		subs: _elm_lang$core$Native_List.Nil
+	};
+	if (isCmd)
+	{
+		effects.cmds = _elm_lang$core$Native_List.Cons(newEffect, effects.cmds);
+		return effects;
+	}
+	effects.subs = _elm_lang$core$Native_List.Cons(newEffect, effects.subs);
+	return effects;
+}
+
+
+// PORTS
+
+function checkPortName(name)
+{
+	if (name in effectManagers)
+	{
+		throw new Error('There can only be one port named `' + name + '`, but your program has multiple.');
+	}
+}
+
+
+// OUTGOING PORTS
+
+function outgoingPort(name, converter)
+{
+	checkPortName(name);
+	effectManagers[name] = {
+		tag: 'cmd',
+		cmdMap: outgoingPortMap,
+		converter: converter,
+		isForeign: true
+	};
+	return leaf(name);
+}
+
+var outgoingPortMap = F2(function cmdMap(tagger, value) {
+	return value;
+});
+
+function setupOutgoingPort(name)
+{
+	var subs = [];
+	var converter = effectManagers[name].converter;
+
+	// CREATE MANAGER
+
+	var init = _elm_lang$core$Native_Scheduler.succeed(null);
+
+	function onEffects(router, cmdList, state)
+	{
+		while (cmdList.ctor !== '[]')
+		{
+			// grab a separate reference to subs in case unsubscribe is called
+			var currentSubs = subs;
+			var value = converter(cmdList._0);
+			for (var i = 0; i < currentSubs.length; i++)
+			{
+				currentSubs[i](value);
+			}
+			cmdList = cmdList._1;
+		}
+		return init;
+	}
+
+	effectManagers[name].init = init;
+	effectManagers[name].onEffects = F3(onEffects);
+
+	// PUBLIC API
+
+	function subscribe(callback)
+	{
+		subs.push(callback);
+	}
+
+	function unsubscribe(callback)
+	{
+		// copy subs into a new array in case unsubscribe is called within a
+		// subscribed callback
+		subs = subs.slice();
+		var index = subs.indexOf(callback);
+		if (index >= 0)
+		{
+			subs.splice(index, 1);
+		}
+	}
+
+	return {
+		subscribe: subscribe,
+		unsubscribe: unsubscribe
+	};
+}
+
+
+// INCOMING PORTS
+
+function incomingPort(name, converter)
+{
+	checkPortName(name);
+	effectManagers[name] = {
+		tag: 'sub',
+		subMap: incomingPortMap,
+		converter: converter,
+		isForeign: true
+	};
+	return leaf(name);
+}
+
+var incomingPortMap = F2(function subMap(tagger, finalTagger)
+{
+	return function(value)
+	{
+		return tagger(finalTagger(value));
+	};
+});
+
+function setupIncomingPort(name, callback)
+{
+	var sentBeforeInit = [];
+	var subs = _elm_lang$core$Native_List.Nil;
+	var converter = effectManagers[name].converter;
+	var currentOnEffects = preInitOnEffects;
+	var currentSend = preInitSend;
+
+	// CREATE MANAGER
+
+	var init = _elm_lang$core$Native_Scheduler.succeed(null);
+
+	function preInitOnEffects(router, subList, state)
+	{
+		var postInitResult = postInitOnEffects(router, subList, state);
+
+		for(var i = 0; i < sentBeforeInit.length; i++)
+		{
+			postInitSend(sentBeforeInit[i]);
+		}
+
+		sentBeforeInit = null; // to release objects held in queue
+		currentSend = postInitSend;
+		currentOnEffects = postInitOnEffects;
+		return postInitResult;
+	}
+
+	function postInitOnEffects(router, subList, state)
+	{
+		subs = subList;
+		return init;
+	}
+
+	function onEffects(router, subList, state)
+	{
+		return currentOnEffects(router, subList, state);
+	}
+
+	effectManagers[name].init = init;
+	effectManagers[name].onEffects = F3(onEffects);
+
+	// PUBLIC API
+
+	function preInitSend(value)
+	{
+		sentBeforeInit.push(value);
+	}
+
+	function postInitSend(value)
+	{
+		var temp = subs;
+		while (temp.ctor !== '[]')
+		{
+			callback(temp._0(value));
+			temp = temp._1;
+		}
+	}
+
+	function send(incomingValue)
+	{
+		var result = A2(_elm_lang$core$Json_Decode$decodeValue, converter, incomingValue);
+		if (result.ctor === 'Err')
+		{
+			throw new Error('Trying to send an unexpected type of value through port `' + name + '`:\n' + result._0);
+		}
+
+		currentSend(result._0);
+	}
+
+	return { send: send };
+}
+
+return {
+	// routers
+	sendToApp: F2(sendToApp),
+	sendToSelf: F2(sendToSelf),
+
+	// global setup
+	effectManagers: effectManagers,
+	outgoingPort: outgoingPort,
+	incomingPort: incomingPort,
+
+	htmlToProgram: htmlToProgram,
+	program: program,
+	programWithFlags: programWithFlags,
+	initialize: initialize,
+
+	// effect bags
+	leaf: leaf,
+	batch: batch,
+	map: F2(map)
+};
+
+}();
+
+//import Native.Utils //
+
+var _elm_lang$core$Native_Scheduler = function() {
+
+var MAX_STEPS = 10000;
+
+
+// TASKS
+
+function succeed(value)
+{
+	return {
+		ctor: '_Task_succeed',
+		value: value
+	};
+}
+
+function fail(error)
+{
+	return {
+		ctor: '_Task_fail',
+		value: error
+	};
+}
+
+function nativeBinding(callback)
+{
+	return {
+		ctor: '_Task_nativeBinding',
+		callback: callback,
+		cancel: null
+	};
+}
+
+function andThen(callback, task)
+{
+	return {
+		ctor: '_Task_andThen',
+		callback: callback,
+		task: task
+	};
+}
+
+function onError(callback, task)
+{
+	return {
+		ctor: '_Task_onError',
+		callback: callback,
+		task: task
+	};
+}
+
+function receive(callback)
+{
+	return {
+		ctor: '_Task_receive',
+		callback: callback
+	};
+}
+
+
+// PROCESSES
+
+function rawSpawn(task)
+{
+	var process = {
+		ctor: '_Process',
+		id: _elm_lang$core$Native_Utils.guid(),
+		root: task,
+		stack: null,
+		mailbox: []
+	};
+
+	enqueue(process);
+
+	return process;
+}
+
+function spawn(task)
+{
+	return nativeBinding(function(callback) {
+		var process = rawSpawn(task);
+		callback(succeed(process));
+	});
+}
+
+function rawSend(process, msg)
+{
+	process.mailbox.push(msg);
+	enqueue(process);
+}
+
+function send(process, msg)
+{
+	return nativeBinding(function(callback) {
+		rawSend(process, msg);
+		callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
+	});
+}
+
+function kill(process)
+{
+	return nativeBinding(function(callback) {
+		var root = process.root;
+		if (root.ctor === '_Task_nativeBinding' && root.cancel)
+		{
+			root.cancel();
+		}
+
+		process.root = null;
+
+		callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
+	});
+}
+
+function sleep(time)
+{
+	return nativeBinding(function(callback) {
+		var id = setTimeout(function() {
+			callback(succeed(_elm_lang$core$Native_Utils.Tuple0));
+		}, time);
+
+		return function() { clearTimeout(id); };
+	});
+}
+
+
+// STEP PROCESSES
+
+function step(numSteps, process)
+{
+	while (numSteps < MAX_STEPS)
+	{
+		var ctor = process.root.ctor;
+
+		if (ctor === '_Task_succeed')
+		{
+			while (process.stack && process.stack.ctor === '_Task_onError')
+			{
+				process.stack = process.stack.rest;
+			}
+			if (process.stack === null)
+			{
+				break;
+			}
+			process.root = process.stack.callback(process.root.value);
+			process.stack = process.stack.rest;
+			++numSteps;
+			continue;
+		}
+
+		if (ctor === '_Task_fail')
+		{
+			while (process.stack && process.stack.ctor === '_Task_andThen')
+			{
+				process.stack = process.stack.rest;
+			}
+			if (process.stack === null)
+			{
+				break;
+			}
+			process.root = process.stack.callback(process.root.value);
+			process.stack = process.stack.rest;
+			++numSteps;
+			continue;
+		}
+
+		if (ctor === '_Task_andThen')
+		{
+			process.stack = {
+				ctor: '_Task_andThen',
+				callback: process.root.callback,
+				rest: process.stack
+			};
+			process.root = process.root.task;
+			++numSteps;
+			continue;
+		}
+
+		if (ctor === '_Task_onError')
+		{
+			process.stack = {
+				ctor: '_Task_onError',
+				callback: process.root.callback,
+				rest: process.stack
+			};
+			process.root = process.root.task;
+			++numSteps;
+			continue;
+		}
+
+		if (ctor === '_Task_nativeBinding')
+		{
+			process.root.cancel = process.root.callback(function(newRoot) {
+				process.root = newRoot;
+				enqueue(process);
+			});
+
+			break;
+		}
+
+		if (ctor === '_Task_receive')
+		{
+			var mailbox = process.mailbox;
+			if (mailbox.length === 0)
+			{
+				break;
+			}
+
+			process.root = process.root.callback(mailbox.shift());
+			++numSteps;
+			continue;
+		}
+
+		throw new Error(ctor);
+	}
+
+	if (numSteps < MAX_STEPS)
+	{
+		return numSteps + 1;
+	}
+	enqueue(process);
+
+	return numSteps;
+}
+
+
+// WORK QUEUE
+
+var working = false;
+var workQueue = [];
+
+function enqueue(process)
+{
+	workQueue.push(process);
+
+	if (!working)
+	{
+		setTimeout(work, 0);
+		working = true;
+	}
+}
+
+function work()
+{
+	var numSteps = 0;
+	var process;
+	while (numSteps < MAX_STEPS && (process = workQueue.shift()))
+	{
+		if (process.root)
+		{
+			numSteps = step(numSteps, process);
+		}
+	}
+	if (!process)
+	{
+		working = false;
+		return;
+	}
+	setTimeout(work, 0);
+}
+
+
+return {
+	succeed: succeed,
+	fail: fail,
+	nativeBinding: nativeBinding,
+	andThen: F2(andThen),
+	onError: F2(onError),
+	receive: receive,
+
+	spawn: spawn,
+	kill: kill,
+	sleep: sleep,
+	send: F2(send),
+
+	rawSpawn: rawSpawn,
+	rawSend: rawSend
+};
+
+}();
+var _elm_lang$core$Platform_Cmd$batch = _elm_lang$core$Native_Platform.batch;
+var _elm_lang$core$Platform_Cmd$none = _elm_lang$core$Platform_Cmd$batch(
+	{ctor: '[]'});
+var _elm_lang$core$Platform_Cmd_ops = _elm_lang$core$Platform_Cmd_ops || {};
+_elm_lang$core$Platform_Cmd_ops['!'] = F2(
+	function (model, commands) {
+		return {
+			ctor: '_Tuple2',
+			_0: model,
+			_1: _elm_lang$core$Platform_Cmd$batch(commands)
+		};
+	});
+var _elm_lang$core$Platform_Cmd$map = _elm_lang$core$Native_Platform.map;
+var _elm_lang$core$Platform_Cmd$Cmd = {ctor: 'Cmd'};
+
+var _elm_lang$core$Platform_Sub$batch = _elm_lang$core$Native_Platform.batch;
+var _elm_lang$core$Platform_Sub$none = _elm_lang$core$Platform_Sub$batch(
+	{ctor: '[]'});
+var _elm_lang$core$Platform_Sub$map = _elm_lang$core$Native_Platform.map;
+var _elm_lang$core$Platform_Sub$Sub = {ctor: 'Sub'};
+
+var _elm_lang$core$Platform$hack = _elm_lang$core$Native_Scheduler.succeed;
+var _elm_lang$core$Platform$sendToSelf = _elm_lang$core$Native_Platform.sendToSelf;
+var _elm_lang$core$Platform$sendToApp = _elm_lang$core$Native_Platform.sendToApp;
+var _elm_lang$core$Platform$programWithFlags = _elm_lang$core$Native_Platform.programWithFlags;
+var _elm_lang$core$Platform$program = _elm_lang$core$Native_Platform.program;
+var _elm_lang$core$Platform$Program = {ctor: 'Program'};
+var _elm_lang$core$Platform$Task = {ctor: 'Task'};
+var _elm_lang$core$Platform$ProcessId = {ctor: 'ProcessId'};
+var _elm_lang$core$Platform$Router = {ctor: 'Router'};
+
+var _connexity$ksql_web$Stream$isPaused = function (stream) {
+	var _p0 = stream;
+	if (_p0.ctor === 'Live') {
+		return false;
+	} else {
+		return true;
+	}
+};
+var _connexity$ksql_web$Stream$items = function (stream) {
+	var _p1 = stream;
+	if (_p1.ctor === 'Live') {
+		return _p1._1;
+	} else {
+		return _p1._1;
+	}
+};
+var _connexity$ksql_web$Stream$addToStream = F3(
+	function (limit, item, items) {
+		return A2(
+			_elm_lang$core$List$take,
+			limit,
+			{ctor: '::', _0: item, _1: items});
+	});
+var _connexity$ksql_web$Stream$Paused = F3(
+	function (a, b, c) {
+		return {ctor: 'Paused', _0: a, _1: b, _2: c};
+	});
+var _connexity$ksql_web$Stream$Live = F2(
+	function (a, b) {
+		return {ctor: 'Live', _0: a, _1: b};
+	});
+var _connexity$ksql_web$Stream$empty = function (limit) {
+	return A2(
+		_connexity$ksql_web$Stream$Live,
+		limit,
+		{ctor: '[]'});
+};
+var _connexity$ksql_web$Stream_ops = _connexity$ksql_web$Stream_ops || {};
+_connexity$ksql_web$Stream_ops[':::'] = F2(
+	function (item, stream) {
+		var _p2 = stream;
+		if (_p2.ctor === 'Live') {
+			var _p3 = _p2._0;
+			return A2(
+				_connexity$ksql_web$Stream$Live,
+				_p3,
+				A3(_connexity$ksql_web$Stream$addToStream, _p3, item, _p2._1));
+		} else {
+			var _p4 = _p2._0;
+			return A3(
+				_connexity$ksql_web$Stream$Paused,
+				_p4,
+				_p2._1,
+				A3(_connexity$ksql_web$Stream$addToStream, _p4, item, _p2._2));
+		}
+	});
+var _connexity$ksql_web$Stream$togglePause = function (stream) {
+	var _p5 = stream;
+	if (_p5.ctor === 'Live') {
+		return A3(
+			_connexity$ksql_web$Stream$Paused,
+			_p5._0,
+			_p5._1,
+			{ctor: '[]'});
+	} else {
+		var _p6 = _p5._0;
+		return A2(
+			_connexity$ksql_web$Stream$Live,
+			_p6,
+			A2(
+				_elm_lang$core$List$take,
+				_p6,
+				A2(_elm_lang$core$Basics_ops['++'], _p5._2, _p5._1)));
+	}
+};
+
+//import Native.Scheduler //
+
+var _elm_lang$core$Native_Time = function() {
+
+var now = _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+{
+	callback(_elm_lang$core$Native_Scheduler.succeed(Date.now()));
+});
+
+function setInterval_(interval, task)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		var id = setInterval(function() {
+			_elm_lang$core$Native_Scheduler.rawSpawn(task);
+		}, interval);
+
+		return function() { clearInterval(id); };
+	});
+}
+
+return {
+	now: now,
+	setInterval_: F2(setInterval_)
+};
+
+}();
+var _elm_lang$core$Task$onError = _elm_lang$core$Native_Scheduler.onError;
+var _elm_lang$core$Task$andThen = _elm_lang$core$Native_Scheduler.andThen;
+var _elm_lang$core$Task$spawnCmd = F2(
+	function (router, _p0) {
+		var _p1 = _p0;
+		return _elm_lang$core$Native_Scheduler.spawn(
+			A2(
+				_elm_lang$core$Task$andThen,
+				_elm_lang$core$Platform$sendToApp(router),
+				_p1._0));
+	});
+var _elm_lang$core$Task$fail = _elm_lang$core$Native_Scheduler.fail;
+var _elm_lang$core$Task$mapError = F2(
+	function (convert, task) {
+		return A2(
+			_elm_lang$core$Task$onError,
+			function (_p2) {
+				return _elm_lang$core$Task$fail(
+					convert(_p2));
+			},
+			task);
+	});
+var _elm_lang$core$Task$succeed = _elm_lang$core$Native_Scheduler.succeed;
+var _elm_lang$core$Task$map = F2(
+	function (func, taskA) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (a) {
+				return _elm_lang$core$Task$succeed(
+					func(a));
+			},
+			taskA);
+	});
+var _elm_lang$core$Task$map2 = F3(
+	function (func, taskA, taskB) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (a) {
+				return A2(
+					_elm_lang$core$Task$andThen,
+					function (b) {
+						return _elm_lang$core$Task$succeed(
+							A2(func, a, b));
+					},
+					taskB);
+			},
+			taskA);
+	});
+var _elm_lang$core$Task$map3 = F4(
+	function (func, taskA, taskB, taskC) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (a) {
+				return A2(
+					_elm_lang$core$Task$andThen,
+					function (b) {
+						return A2(
+							_elm_lang$core$Task$andThen,
+							function (c) {
+								return _elm_lang$core$Task$succeed(
+									A3(func, a, b, c));
+							},
+							taskC);
+					},
+					taskB);
+			},
+			taskA);
+	});
+var _elm_lang$core$Task$map4 = F5(
+	function (func, taskA, taskB, taskC, taskD) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (a) {
+				return A2(
+					_elm_lang$core$Task$andThen,
+					function (b) {
+						return A2(
+							_elm_lang$core$Task$andThen,
+							function (c) {
+								return A2(
+									_elm_lang$core$Task$andThen,
+									function (d) {
+										return _elm_lang$core$Task$succeed(
+											A4(func, a, b, c, d));
+									},
+									taskD);
+							},
+							taskC);
+					},
+					taskB);
+			},
+			taskA);
+	});
+var _elm_lang$core$Task$map5 = F6(
+	function (func, taskA, taskB, taskC, taskD, taskE) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (a) {
+				return A2(
+					_elm_lang$core$Task$andThen,
+					function (b) {
+						return A2(
+							_elm_lang$core$Task$andThen,
+							function (c) {
+								return A2(
+									_elm_lang$core$Task$andThen,
+									function (d) {
+										return A2(
+											_elm_lang$core$Task$andThen,
+											function (e) {
+												return _elm_lang$core$Task$succeed(
+													A5(func, a, b, c, d, e));
+											},
+											taskE);
+									},
+									taskD);
+							},
+							taskC);
+					},
+					taskB);
+			},
+			taskA);
+	});
+var _elm_lang$core$Task$sequence = function (tasks) {
+	var _p3 = tasks;
+	if (_p3.ctor === '[]') {
+		return _elm_lang$core$Task$succeed(
+			{ctor: '[]'});
+	} else {
+		return A3(
+			_elm_lang$core$Task$map2,
+			F2(
+				function (x, y) {
+					return {ctor: '::', _0: x, _1: y};
+				}),
+			_p3._0,
+			_elm_lang$core$Task$sequence(_p3._1));
+	}
+};
+var _elm_lang$core$Task$onEffects = F3(
+	function (router, commands, state) {
+		return A2(
+			_elm_lang$core$Task$map,
+			function (_p4) {
+				return {ctor: '_Tuple0'};
+			},
+			_elm_lang$core$Task$sequence(
+				A2(
+					_elm_lang$core$List$map,
+					_elm_lang$core$Task$spawnCmd(router),
+					commands)));
+	});
+var _elm_lang$core$Task$init = _elm_lang$core$Task$succeed(
+	{ctor: '_Tuple0'});
+var _elm_lang$core$Task$onSelfMsg = F3(
+	function (_p7, _p6, _p5) {
+		return _elm_lang$core$Task$succeed(
+			{ctor: '_Tuple0'});
+	});
+var _elm_lang$core$Task$command = _elm_lang$core$Native_Platform.leaf('Task');
+var _elm_lang$core$Task$Perform = function (a) {
+	return {ctor: 'Perform', _0: a};
+};
+var _elm_lang$core$Task$perform = F2(
+	function (toMessage, task) {
+		return _elm_lang$core$Task$command(
+			_elm_lang$core$Task$Perform(
+				A2(_elm_lang$core$Task$map, toMessage, task)));
+	});
+var _elm_lang$core$Task$attempt = F2(
+	function (resultToMessage, task) {
+		return _elm_lang$core$Task$command(
+			_elm_lang$core$Task$Perform(
+				A2(
+					_elm_lang$core$Task$onError,
+					function (_p8) {
+						return _elm_lang$core$Task$succeed(
+							resultToMessage(
+								_elm_lang$core$Result$Err(_p8)));
+					},
+					A2(
+						_elm_lang$core$Task$andThen,
+						function (_p9) {
+							return _elm_lang$core$Task$succeed(
+								resultToMessage(
+									_elm_lang$core$Result$Ok(_p9)));
+						},
+						task))));
+	});
+var _elm_lang$core$Task$cmdMap = F2(
+	function (tagger, _p10) {
+		var _p11 = _p10;
+		return _elm_lang$core$Task$Perform(
+			A2(_elm_lang$core$Task$map, tagger, _p11._0));
+	});
+_elm_lang$core$Native_Platform.effectManagers['Task'] = {pkg: 'elm-lang/core', init: _elm_lang$core$Task$init, onEffects: _elm_lang$core$Task$onEffects, onSelfMsg: _elm_lang$core$Task$onSelfMsg, tag: 'cmd', cmdMap: _elm_lang$core$Task$cmdMap};
+
+var _elm_lang$core$Time$setInterval = _elm_lang$core$Native_Time.setInterval_;
+var _elm_lang$core$Time$spawnHelp = F3(
+	function (router, intervals, processes) {
+		var _p0 = intervals;
+		if (_p0.ctor === '[]') {
+			return _elm_lang$core$Task$succeed(processes);
+		} else {
+			var _p1 = _p0._0;
+			var spawnRest = function (id) {
+				return A3(
+					_elm_lang$core$Time$spawnHelp,
+					router,
+					_p0._1,
+					A3(_elm_lang$core$Dict$insert, _p1, id, processes));
+			};
+			var spawnTimer = _elm_lang$core$Native_Scheduler.spawn(
+				A2(
+					_elm_lang$core$Time$setInterval,
+					_p1,
+					A2(_elm_lang$core$Platform$sendToSelf, router, _p1)));
+			return A2(_elm_lang$core$Task$andThen, spawnRest, spawnTimer);
+		}
+	});
+var _elm_lang$core$Time$addMySub = F2(
+	function (_p2, state) {
+		var _p3 = _p2;
+		var _p6 = _p3._1;
+		var _p5 = _p3._0;
+		var _p4 = A2(_elm_lang$core$Dict$get, _p5, state);
+		if (_p4.ctor === 'Nothing') {
+			return A3(
+				_elm_lang$core$Dict$insert,
+				_p5,
+				{
+					ctor: '::',
+					_0: _p6,
+					_1: {ctor: '[]'}
+				},
+				state);
+		} else {
+			return A3(
+				_elm_lang$core$Dict$insert,
+				_p5,
+				{ctor: '::', _0: _p6, _1: _p4._0},
+				state);
+		}
+	});
+var _elm_lang$core$Time$inMilliseconds = function (t) {
+	return t;
+};
+var _elm_lang$core$Time$millisecond = 1;
+var _elm_lang$core$Time$second = 1000 * _elm_lang$core$Time$millisecond;
+var _elm_lang$core$Time$minute = 60 * _elm_lang$core$Time$second;
+var _elm_lang$core$Time$hour = 60 * _elm_lang$core$Time$minute;
+var _elm_lang$core$Time$inHours = function (t) {
+	return t / _elm_lang$core$Time$hour;
+};
+var _elm_lang$core$Time$inMinutes = function (t) {
+	return t / _elm_lang$core$Time$minute;
+};
+var _elm_lang$core$Time$inSeconds = function (t) {
+	return t / _elm_lang$core$Time$second;
+};
+var _elm_lang$core$Time$now = _elm_lang$core$Native_Time.now;
+var _elm_lang$core$Time$onSelfMsg = F3(
+	function (router, interval, state) {
+		var _p7 = A2(_elm_lang$core$Dict$get, interval, state.taggers);
+		if (_p7.ctor === 'Nothing') {
+			return _elm_lang$core$Task$succeed(state);
+		} else {
+			var tellTaggers = function (time) {
+				return _elm_lang$core$Task$sequence(
+					A2(
+						_elm_lang$core$List$map,
+						function (tagger) {
+							return A2(
+								_elm_lang$core$Platform$sendToApp,
+								router,
+								tagger(time));
+						},
+						_p7._0));
+			};
+			return A2(
+				_elm_lang$core$Task$andThen,
+				function (_p8) {
+					return _elm_lang$core$Task$succeed(state);
+				},
+				A2(_elm_lang$core$Task$andThen, tellTaggers, _elm_lang$core$Time$now));
+		}
+	});
+var _elm_lang$core$Time$subscription = _elm_lang$core$Native_Platform.leaf('Time');
+var _elm_lang$core$Time$State = F2(
+	function (a, b) {
+		return {taggers: a, processes: b};
+	});
+var _elm_lang$core$Time$init = _elm_lang$core$Task$succeed(
+	A2(_elm_lang$core$Time$State, _elm_lang$core$Dict$empty, _elm_lang$core$Dict$empty));
+var _elm_lang$core$Time$onEffects = F3(
+	function (router, subs, _p9) {
+		var _p10 = _p9;
+		var rightStep = F3(
+			function (_p12, id, _p11) {
+				var _p13 = _p11;
+				return {
+					ctor: '_Tuple3',
+					_0: _p13._0,
+					_1: _p13._1,
+					_2: A2(
+						_elm_lang$core$Task$andThen,
+						function (_p14) {
+							return _p13._2;
+						},
+						_elm_lang$core$Native_Scheduler.kill(id))
+				};
+			});
+		var bothStep = F4(
+			function (interval, taggers, id, _p15) {
+				var _p16 = _p15;
+				return {
+					ctor: '_Tuple3',
+					_0: _p16._0,
+					_1: A3(_elm_lang$core$Dict$insert, interval, id, _p16._1),
+					_2: _p16._2
+				};
+			});
+		var leftStep = F3(
+			function (interval, taggers, _p17) {
+				var _p18 = _p17;
+				return {
+					ctor: '_Tuple3',
+					_0: {ctor: '::', _0: interval, _1: _p18._0},
+					_1: _p18._1,
+					_2: _p18._2
+				};
+			});
+		var newTaggers = A3(_elm_lang$core$List$foldl, _elm_lang$core$Time$addMySub, _elm_lang$core$Dict$empty, subs);
+		var _p19 = A6(
+			_elm_lang$core$Dict$merge,
+			leftStep,
+			bothStep,
+			rightStep,
+			newTaggers,
+			_p10.processes,
+			{
+				ctor: '_Tuple3',
+				_0: {ctor: '[]'},
+				_1: _elm_lang$core$Dict$empty,
+				_2: _elm_lang$core$Task$succeed(
+					{ctor: '_Tuple0'})
+			});
+		var spawnList = _p19._0;
+		var existingDict = _p19._1;
+		var killTask = _p19._2;
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (newProcesses) {
+				return _elm_lang$core$Task$succeed(
+					A2(_elm_lang$core$Time$State, newTaggers, newProcesses));
+			},
+			A2(
+				_elm_lang$core$Task$andThen,
+				function (_p20) {
+					return A3(_elm_lang$core$Time$spawnHelp, router, spawnList, existingDict);
+				},
+				killTask));
+	});
+var _elm_lang$core$Time$Every = F2(
+	function (a, b) {
+		return {ctor: 'Every', _0: a, _1: b};
+	});
+var _elm_lang$core$Time$every = F2(
+	function (interval, tagger) {
+		return _elm_lang$core$Time$subscription(
+			A2(_elm_lang$core$Time$Every, interval, tagger));
+	});
+var _elm_lang$core$Time$subMap = F2(
+	function (f, _p21) {
+		var _p22 = _p21;
+		return A2(
+			_elm_lang$core$Time$Every,
+			_p22._0,
+			function (_p23) {
+				return f(
+					_p22._1(_p23));
+			});
+	});
+_elm_lang$core$Native_Platform.effectManagers['Time'] = {pkg: 'elm-lang/core', init: _elm_lang$core$Time$init, onEffects: _elm_lang$core$Time$onEffects, onSelfMsg: _elm_lang$core$Time$onSelfMsg, tag: 'sub', subMap: _elm_lang$core$Time$subMap};
+
+var _elm_lang$core$Process$kill = _elm_lang$core$Native_Scheduler.kill;
+var _elm_lang$core$Process$sleep = _elm_lang$core$Native_Scheduler.sleep;
+var _elm_lang$core$Process$spawn = _elm_lang$core$Native_Scheduler.spawn;
+
+var _elm_lang$websocket$Native_WebSocket = function() {
+
+function open(url, settings)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		try
+		{
+			var socket = new WebSocket(url);
+			socket.elm_web_socket = true;
+		}
+		catch(err)
+		{
+			return callback(_elm_lang$core$Native_Scheduler.fail({
+				ctor: err.name === 'SecurityError' ? 'BadSecurity' : 'BadArgs',
+				_0: err.message
+			}));
+		}
+
+		socket.addEventListener("open", function(event) {
+			callback(_elm_lang$core$Native_Scheduler.succeed(socket));
+		});
+
+		socket.addEventListener("message", function(event) {
+			_elm_lang$core$Native_Scheduler.rawSpawn(A2(settings.onMessage, socket, event.data));
+		});
+
+		socket.addEventListener("close", function(event) {
+			_elm_lang$core$Native_Scheduler.rawSpawn(settings.onClose({
+				code: event.code,
+				reason: event.reason,
+				wasClean: event.wasClean
+			}));
+		});
+
+		return function()
+		{
+			if (socket && socket.close)
+			{
+				socket.close();
+			}
+		};
+	});
+}
+
+function send(socket, string)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		var result =
+			socket.readyState === WebSocket.OPEN
+				? _elm_lang$core$Maybe$Nothing
+				: _elm_lang$core$Maybe$Just({ ctor: 'NotOpen' });
+
+		try
+		{
+			socket.send(string);
+		}
+		catch(err)
+		{
+			result = _elm_lang$core$Maybe$Just({ ctor: 'BadString' });
+		}
+
+		callback(_elm_lang$core$Native_Scheduler.succeed(result));
+	});
+}
+
+function close(code, reason, socket)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+		try
+		{
+			socket.close(code, reason);
+		}
+		catch(err)
+		{
+			return callback(_elm_lang$core$Native_Scheduler.fail(_elm_lang$core$Maybe$Just({
+				ctor: err.name === 'SyntaxError' ? 'BadReason' : 'BadCode'
+			})));
+		}
+		callback(_elm_lang$core$Native_Scheduler.succeed(_elm_lang$core$Maybe$Nothing));
+	});
+}
+
+function bytesQueued(socket)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+		callback(_elm_lang$core$Native_Scheduler.succeed(socket.bufferedAmount));
+	});
+}
+
+return {
+	open: F2(open),
+	send: F2(send),
+	close: F3(close),
+	bytesQueued: bytesQueued
+};
+
+}();
+
+var _elm_lang$websocket$WebSocket_LowLevel$bytesQueued = _elm_lang$websocket$Native_WebSocket.bytesQueued;
+var _elm_lang$websocket$WebSocket_LowLevel$send = _elm_lang$websocket$Native_WebSocket.send;
+var _elm_lang$websocket$WebSocket_LowLevel$closeWith = _elm_lang$websocket$Native_WebSocket.close;
+var _elm_lang$websocket$WebSocket_LowLevel$close = function (socket) {
+	return A2(
+		_elm_lang$core$Task$map,
+		_elm_lang$core$Basics$always(
+			{ctor: '_Tuple0'}),
+		A3(_elm_lang$websocket$WebSocket_LowLevel$closeWith, 1000, '', socket));
+};
+var _elm_lang$websocket$WebSocket_LowLevel$open = _elm_lang$websocket$Native_WebSocket.open;
+var _elm_lang$websocket$WebSocket_LowLevel$Settings = F2(
+	function (a, b) {
+		return {onMessage: a, onClose: b};
+	});
+var _elm_lang$websocket$WebSocket_LowLevel$WebSocket = {ctor: 'WebSocket'};
+var _elm_lang$websocket$WebSocket_LowLevel$BadArgs = {ctor: 'BadArgs'};
+var _elm_lang$websocket$WebSocket_LowLevel$BadSecurity = {ctor: 'BadSecurity'};
+var _elm_lang$websocket$WebSocket_LowLevel$BadReason = {ctor: 'BadReason'};
+var _elm_lang$websocket$WebSocket_LowLevel$BadCode = {ctor: 'BadCode'};
+var _elm_lang$websocket$WebSocket_LowLevel$BadString = {ctor: 'BadString'};
+var _elm_lang$websocket$WebSocket_LowLevel$NotOpen = {ctor: 'NotOpen'};
+
+var _elm_lang$websocket$WebSocket$closeConnection = function (connection) {
+	var _p0 = connection;
+	if (_p0.ctor === 'Opening') {
+		return _elm_lang$core$Process$kill(_p0._1);
+	} else {
+		return _elm_lang$websocket$WebSocket_LowLevel$close(_p0._0);
+	}
+};
+var _elm_lang$websocket$WebSocket$after = function (backoff) {
+	return (_elm_lang$core$Native_Utils.cmp(backoff, 1) < 0) ? _elm_lang$core$Task$succeed(
+		{ctor: '_Tuple0'}) : _elm_lang$core$Process$sleep(
+		_elm_lang$core$Basics$toFloat(
+			10 * Math.pow(2, backoff)));
+};
+var _elm_lang$websocket$WebSocket$removeQueue = F2(
+	function (name, state) {
+		return _elm_lang$core$Native_Utils.update(
+			state,
+			{
+				queues: A2(_elm_lang$core$Dict$remove, name, state.queues)
+			});
+	});
+var _elm_lang$websocket$WebSocket$updateSocket = F3(
+	function (name, connection, state) {
+		return _elm_lang$core$Native_Utils.update(
+			state,
+			{
+				sockets: A3(_elm_lang$core$Dict$insert, name, connection, state.sockets)
+			});
+	});
+var _elm_lang$websocket$WebSocket$add = F2(
+	function (value, maybeList) {
+		var _p1 = maybeList;
+		if (_p1.ctor === 'Nothing') {
+			return _elm_lang$core$Maybe$Just(
+				{
+					ctor: '::',
+					_0: value,
+					_1: {ctor: '[]'}
+				});
+		} else {
+			return _elm_lang$core$Maybe$Just(
+				{ctor: '::', _0: value, _1: _p1._0});
+		}
+	});
+var _elm_lang$websocket$WebSocket$buildSubDict = F2(
+	function (subs, dict) {
+		buildSubDict:
+		while (true) {
+			var _p2 = subs;
+			if (_p2.ctor === '[]') {
+				return dict;
+			} else {
+				if (_p2._0.ctor === 'Listen') {
+					var _v3 = _p2._1,
+						_v4 = A3(
+						_elm_lang$core$Dict$update,
+						_p2._0._0,
+						_elm_lang$websocket$WebSocket$add(_p2._0._1),
+						dict);
+					subs = _v3;
+					dict = _v4;
+					continue buildSubDict;
+				} else {
+					var _v5 = _p2._1,
+						_v6 = A3(
+						_elm_lang$core$Dict$update,
+						_p2._0._0,
+						function (_p3) {
+							return _elm_lang$core$Maybe$Just(
+								A2(
+									_elm_lang$core$Maybe$withDefault,
+									{ctor: '[]'},
+									_p3));
+						},
+						dict);
+					subs = _v5;
+					dict = _v6;
+					continue buildSubDict;
+				}
+			}
+		}
+	});
+var _elm_lang$websocket$WebSocket_ops = _elm_lang$websocket$WebSocket_ops || {};
+_elm_lang$websocket$WebSocket_ops['&>'] = F2(
+	function (t1, t2) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (_p4) {
+				return t2;
+			},
+			t1);
+	});
+var _elm_lang$websocket$WebSocket$sendMessagesHelp = F3(
+	function (cmds, socketsDict, queuesDict) {
+		sendMessagesHelp:
+		while (true) {
+			var _p5 = cmds;
+			if (_p5.ctor === '[]') {
+				return _elm_lang$core$Task$succeed(queuesDict);
+			} else {
+				var _p9 = _p5._1;
+				var _p8 = _p5._0._0;
+				var _p7 = _p5._0._1;
+				var _p6 = A2(_elm_lang$core$Dict$get, _p8, socketsDict);
+				if ((_p6.ctor === 'Just') && (_p6._0.ctor === 'Connected')) {
+					return A2(
+						_elm_lang$websocket$WebSocket_ops['&>'],
+						A2(_elm_lang$websocket$WebSocket_LowLevel$send, _p6._0._0, _p7),
+						A3(_elm_lang$websocket$WebSocket$sendMessagesHelp, _p9, socketsDict, queuesDict));
+				} else {
+					var _v9 = _p9,
+						_v10 = socketsDict,
+						_v11 = A3(
+						_elm_lang$core$Dict$update,
+						_p8,
+						_elm_lang$websocket$WebSocket$add(_p7),
+						queuesDict);
+					cmds = _v9;
+					socketsDict = _v10;
+					queuesDict = _v11;
+					continue sendMessagesHelp;
+				}
+			}
+		}
+	});
+var _elm_lang$websocket$WebSocket$subscription = _elm_lang$core$Native_Platform.leaf('WebSocket');
+var _elm_lang$websocket$WebSocket$command = _elm_lang$core$Native_Platform.leaf('WebSocket');
+var _elm_lang$websocket$WebSocket$State = F3(
+	function (a, b, c) {
+		return {sockets: a, queues: b, subs: c};
+	});
+var _elm_lang$websocket$WebSocket$init = _elm_lang$core$Task$succeed(
+	A3(_elm_lang$websocket$WebSocket$State, _elm_lang$core$Dict$empty, _elm_lang$core$Dict$empty, _elm_lang$core$Dict$empty));
+var _elm_lang$websocket$WebSocket$Send = F2(
+	function (a, b) {
+		return {ctor: 'Send', _0: a, _1: b};
+	});
+var _elm_lang$websocket$WebSocket$send = F2(
+	function (url, message) {
+		return _elm_lang$websocket$WebSocket$command(
+			A2(_elm_lang$websocket$WebSocket$Send, url, message));
+	});
+var _elm_lang$websocket$WebSocket$cmdMap = F2(
+	function (_p11, _p10) {
+		var _p12 = _p10;
+		return A2(_elm_lang$websocket$WebSocket$Send, _p12._0, _p12._1);
+	});
+var _elm_lang$websocket$WebSocket$KeepAlive = function (a) {
+	return {ctor: 'KeepAlive', _0: a};
+};
+var _elm_lang$websocket$WebSocket$keepAlive = function (url) {
+	return _elm_lang$websocket$WebSocket$subscription(
+		_elm_lang$websocket$WebSocket$KeepAlive(url));
+};
+var _elm_lang$websocket$WebSocket$Listen = F2(
+	function (a, b) {
+		return {ctor: 'Listen', _0: a, _1: b};
+	});
+var _elm_lang$websocket$WebSocket$listen = F2(
+	function (url, tagger) {
+		return _elm_lang$websocket$WebSocket$subscription(
+			A2(_elm_lang$websocket$WebSocket$Listen, url, tagger));
+	});
+var _elm_lang$websocket$WebSocket$subMap = F2(
+	function (func, sub) {
+		var _p13 = sub;
+		if (_p13.ctor === 'Listen') {
+			return A2(
+				_elm_lang$websocket$WebSocket$Listen,
+				_p13._0,
+				function (_p14) {
+					return func(
+						_p13._1(_p14));
+				});
+		} else {
+			return _elm_lang$websocket$WebSocket$KeepAlive(_p13._0);
+		}
+	});
+var _elm_lang$websocket$WebSocket$Connected = function (a) {
+	return {ctor: 'Connected', _0: a};
+};
+var _elm_lang$websocket$WebSocket$Opening = F2(
+	function (a, b) {
+		return {ctor: 'Opening', _0: a, _1: b};
+	});
+var _elm_lang$websocket$WebSocket$BadOpen = function (a) {
+	return {ctor: 'BadOpen', _0: a};
+};
+var _elm_lang$websocket$WebSocket$GoodOpen = F2(
+	function (a, b) {
+		return {ctor: 'GoodOpen', _0: a, _1: b};
+	});
+var _elm_lang$websocket$WebSocket$Die = function (a) {
+	return {ctor: 'Die', _0: a};
+};
+var _elm_lang$websocket$WebSocket$Receive = F2(
+	function (a, b) {
+		return {ctor: 'Receive', _0: a, _1: b};
+	});
+var _elm_lang$websocket$WebSocket$open = F2(
+	function (name, router) {
+		return A2(
+			_elm_lang$websocket$WebSocket_LowLevel$open,
+			name,
+			{
+				onMessage: F2(
+					function (_p15, msg) {
+						return A2(
+							_elm_lang$core$Platform$sendToSelf,
+							router,
+							A2(_elm_lang$websocket$WebSocket$Receive, name, msg));
+					}),
+				onClose: function (details) {
+					return A2(
+						_elm_lang$core$Platform$sendToSelf,
+						router,
+						_elm_lang$websocket$WebSocket$Die(name));
+				}
+			});
+	});
+var _elm_lang$websocket$WebSocket$attemptOpen = F3(
+	function (router, backoff, name) {
+		var badOpen = function (_p16) {
+			return A2(
+				_elm_lang$core$Platform$sendToSelf,
+				router,
+				_elm_lang$websocket$WebSocket$BadOpen(name));
+		};
+		var goodOpen = function (ws) {
+			return A2(
+				_elm_lang$core$Platform$sendToSelf,
+				router,
+				A2(_elm_lang$websocket$WebSocket$GoodOpen, name, ws));
+		};
+		var actuallyAttemptOpen = A2(
+			_elm_lang$core$Task$onError,
+			badOpen,
+			A2(
+				_elm_lang$core$Task$andThen,
+				goodOpen,
+				A2(_elm_lang$websocket$WebSocket$open, name, router)));
+		return _elm_lang$core$Process$spawn(
+			A2(
+				_elm_lang$websocket$WebSocket_ops['&>'],
+				_elm_lang$websocket$WebSocket$after(backoff),
+				actuallyAttemptOpen));
+	});
+var _elm_lang$websocket$WebSocket$onEffects = F4(
+	function (router, cmds, subs, state) {
+		var newSubs = A2(_elm_lang$websocket$WebSocket$buildSubDict, subs, _elm_lang$core$Dict$empty);
+		var cleanup = function (newQueues) {
+			var rightStep = F3(
+				function (name, connection, getNewSockets) {
+					return A2(
+						_elm_lang$websocket$WebSocket_ops['&>'],
+						_elm_lang$websocket$WebSocket$closeConnection(connection),
+						getNewSockets);
+				});
+			var bothStep = F4(
+				function (name, _p17, connection, getNewSockets) {
+					return A2(
+						_elm_lang$core$Task$map,
+						A2(_elm_lang$core$Dict$insert, name, connection),
+						getNewSockets);
+				});
+			var leftStep = F3(
+				function (name, _p18, getNewSockets) {
+					return A2(
+						_elm_lang$core$Task$andThen,
+						function (newSockets) {
+							return A2(
+								_elm_lang$core$Task$andThen,
+								function (pid) {
+									return _elm_lang$core$Task$succeed(
+										A3(
+											_elm_lang$core$Dict$insert,
+											name,
+											A2(_elm_lang$websocket$WebSocket$Opening, 0, pid),
+											newSockets));
+								},
+								A3(_elm_lang$websocket$WebSocket$attemptOpen, router, 0, name));
+						},
+						getNewSockets);
+				});
+			var newEntries = A2(
+				_elm_lang$core$Dict$union,
+				newQueues,
+				A2(
+					_elm_lang$core$Dict$map,
+					F2(
+						function (k, v) {
+							return {ctor: '[]'};
+						}),
+					newSubs));
+			var collectNewSockets = A6(
+				_elm_lang$core$Dict$merge,
+				leftStep,
+				bothStep,
+				rightStep,
+				newEntries,
+				state.sockets,
+				_elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty));
+			return A2(
+				_elm_lang$core$Task$andThen,
+				function (newSockets) {
+					return _elm_lang$core$Task$succeed(
+						A3(_elm_lang$websocket$WebSocket$State, newSockets, newQueues, newSubs));
+				},
+				collectNewSockets);
+		};
+		var sendMessagesGetNewQueues = A3(_elm_lang$websocket$WebSocket$sendMessagesHelp, cmds, state.sockets, state.queues);
+		return A2(_elm_lang$core$Task$andThen, cleanup, sendMessagesGetNewQueues);
+	});
+var _elm_lang$websocket$WebSocket$onSelfMsg = F3(
+	function (router, selfMsg, state) {
+		var _p19 = selfMsg;
+		switch (_p19.ctor) {
+			case 'Receive':
+				var sends = A2(
+					_elm_lang$core$List$map,
+					function (tagger) {
+						return A2(
+							_elm_lang$core$Platform$sendToApp,
+							router,
+							tagger(_p19._1));
+					},
+					A2(
+						_elm_lang$core$Maybe$withDefault,
+						{ctor: '[]'},
+						A2(_elm_lang$core$Dict$get, _p19._0, state.subs)));
+				return A2(
+					_elm_lang$websocket$WebSocket_ops['&>'],
+					_elm_lang$core$Task$sequence(sends),
+					_elm_lang$core$Task$succeed(state));
+			case 'Die':
+				var _p21 = _p19._0;
+				var _p20 = A2(_elm_lang$core$Dict$get, _p21, state.sockets);
+				if (_p20.ctor === 'Nothing') {
+					return _elm_lang$core$Task$succeed(state);
+				} else {
+					return A2(
+						_elm_lang$core$Task$andThen,
+						function (pid) {
+							return _elm_lang$core$Task$succeed(
+								A3(
+									_elm_lang$websocket$WebSocket$updateSocket,
+									_p21,
+									A2(_elm_lang$websocket$WebSocket$Opening, 0, pid),
+									state));
+						},
+						A3(_elm_lang$websocket$WebSocket$attemptOpen, router, 0, _p21));
+				}
+			case 'GoodOpen':
+				var _p24 = _p19._1;
+				var _p23 = _p19._0;
+				var _p22 = A2(_elm_lang$core$Dict$get, _p23, state.queues);
+				if (_p22.ctor === 'Nothing') {
+					return _elm_lang$core$Task$succeed(
+						A3(
+							_elm_lang$websocket$WebSocket$updateSocket,
+							_p23,
+							_elm_lang$websocket$WebSocket$Connected(_p24),
+							state));
+				} else {
+					return A3(
+						_elm_lang$core$List$foldl,
+						F2(
+							function (msg, task) {
+								return A2(
+									_elm_lang$websocket$WebSocket_ops['&>'],
+									A2(_elm_lang$websocket$WebSocket_LowLevel$send, _p24, msg),
+									task);
+							}),
+						_elm_lang$core$Task$succeed(
+							A2(
+								_elm_lang$websocket$WebSocket$removeQueue,
+								_p23,
+								A3(
+									_elm_lang$websocket$WebSocket$updateSocket,
+									_p23,
+									_elm_lang$websocket$WebSocket$Connected(_p24),
+									state))),
+						_p22._0);
+				}
+			default:
+				var _p27 = _p19._0;
+				var _p25 = A2(_elm_lang$core$Dict$get, _p27, state.sockets);
+				if (_p25.ctor === 'Nothing') {
+					return _elm_lang$core$Task$succeed(state);
+				} else {
+					if (_p25._0.ctor === 'Opening') {
+						var _p26 = _p25._0._0;
+						return A2(
+							_elm_lang$core$Task$andThen,
+							function (pid) {
+								return _elm_lang$core$Task$succeed(
+									A3(
+										_elm_lang$websocket$WebSocket$updateSocket,
+										_p27,
+										A2(_elm_lang$websocket$WebSocket$Opening, _p26 + 1, pid),
+										state));
+							},
+							A3(_elm_lang$websocket$WebSocket$attemptOpen, router, _p26 + 1, _p27));
+					} else {
+						return _elm_lang$core$Task$succeed(state);
+					}
+				}
+		}
+	});
+_elm_lang$core$Native_Platform.effectManagers['WebSocket'] = {pkg: 'elm-lang/websocket', init: _elm_lang$websocket$WebSocket$init, onEffects: _elm_lang$websocket$WebSocket$onEffects, onSelfMsg: _elm_lang$websocket$WebSocket$onSelfMsg, tag: 'fx', cmdMap: _elm_lang$websocket$WebSocket$cmdMap, subMap: _elm_lang$websocket$WebSocket$subMap};
+
+var _connexity$ksql_web$Ksql_Common$ksqlCommandJson = function (query) {
+	return _elm_lang$core$Json_Encode$object(
+		{
+			ctor: '::',
+			_0: {
+				ctor: '_Tuple2',
+				_0: 'ksql',
+				_1: _elm_lang$core$Json_Encode$string(query)
+			},
+			_1: {ctor: '[]'}
+		});
+};
+var _connexity$ksql_web$Ksql_Common$currentQueryText = function (query) {
+	return A2(
+		_elm_lang$core$Maybe$withDefault,
+		'',
+		_elm_lang$core$List$head(
+			A2(
+				_elm_lang$core$List$filterMap,
+				_elm_lang$core$Basics$identity,
+				{
+					ctor: '::',
+					_0: A2(_elm_lang$core$Dict$get, query.currentHistoryIndex, query.editBuffers),
+					_1: {
+						ctor: '::',
+						_0: (_elm_lang$core$Native_Utils.cmp(query.currentHistoryIndex, 0) < 0) ? _elm_lang$core$Maybe$Nothing : _elm_lang$core$List$head(
+							A2(_elm_lang$core$List$drop, query.currentHistoryIndex, query.queryHistory)),
+						_1: {ctor: '[]'}
+					}
+				})));
+};
+var _connexity$ksql_web$Ksql_Common$webSocketUrl = function (flag) {
+	return A2(
+		_elm_lang$core$Basics_ops['++'],
+		flag.secure ? 'wss' : 'ws',
+		A2(
+			_elm_lang$core$Basics_ops['++'],
+			'://',
+			A2(_elm_lang$core$Basics_ops['++'], flag.host, '/ksql')));
+};
+var _connexity$ksql_web$Ksql_Common$sendQuery = F2(
+	function (flags, query) {
+		return A2(
+			_elm_lang$websocket$WebSocket$send,
+			_connexity$ksql_web$Ksql_Common$webSocketUrl(flags),
+			A2(
+				_elm_lang$core$Json_Encode$encode,
+				0,
+				_connexity$ksql_web$Ksql_Common$ksqlCommandJson(query)));
+	});
+var _connexity$ksql_web$Ksql_Common$progressMarkerLife = 1.5 * _elm_lang$core$Time$second;
+var _connexity$ksql_web$Ksql_Common$Flags = F4(
+	function (a, b, c, d) {
+		return {secure: a, host: b, search: c, queryHistory: d};
+	});
+var _connexity$ksql_web$Ksql_Common$DeterminateProgress = F2(
+	function (a, b) {
+		return {duration: a, currentTime: b};
+	});
+var _connexity$ksql_web$Ksql_Common$IndeterminateProgress = F2(
+	function (a, b) {
+		return {markerDurations: a, currentTime: b};
+	});
+var _connexity$ksql_web$Ksql_Common$Query = F3(
+	function (a, b, c) {
+		return {queryHistory: a, currentHistoryIndex: b, editBuffers: c};
+	});
+var _connexity$ksql_web$Ksql_Common$Table = F2(
+	function (a, b) {
+		return {headerRow: a, dataRows: b};
+	});
+var _connexity$ksql_web$Ksql_Common$Statistics = F2(
+	function (a, b) {
+		return {statistics: a, errorStats: b};
+	});
+var _connexity$ksql_web$Ksql_Common$Topic = F3(
+	function (a, b, c) {
+		return {name: a, partitions: b, replication: c};
+	});
+var _connexity$ksql_web$Ksql_Common$ExtendedSchema = F8(
+	function (a, b, c, d, e, f, g, h) {
+		return {schemaType: a, key: b, timestamp: c, serdes: d, kafkaOutputTopic: e, schema: f, writeQueries: g, statistics: h};
+	});
+var _connexity$ksql_web$Ksql_Common$ExecutionPlan = F5(
+	function (a, b, c, d, e) {
+		return {statementText: a, statistics: b, kafkaOutputTopic: c, executionPlan: d, topology: e};
+	});
+var _connexity$ksql_web$Ksql_Common$Model = F6(
+	function (a, b, c, d, e, f) {
+		return {flags: a, state: b, query: c, result: d, notifications: e, errorMessages: f};
+	});
+var _connexity$ksql_web$Ksql_Common$Streaming = F2(
+	function (a, b) {
+		return {ctor: 'Streaming', _0: a, _1: b};
+	});
+var _connexity$ksql_web$Ksql_Common$Running = function (a) {
+	return {ctor: 'Running', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$Idle = {ctor: 'Idle'};
+var _connexity$ksql_web$Ksql_Common$Initializing = function (a) {
+	return {ctor: 'Initializing', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$JsonColumn = function (a) {
+	return {ctor: 'JsonColumn', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$ArrayColumn = function (a) {
+	return {ctor: 'ArrayColumn', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$NullColumn = {ctor: 'NullColumn'};
+var _connexity$ksql_web$Ksql_Common$StringColumn = function (a) {
+	return {ctor: 'StringColumn', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$NumericColumn = function (a) {
+	return {ctor: 'NumericColumn', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$BoolColumn = function (a) {
+	return {ctor: 'BoolColumn', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$ExplainResult = function (a) {
+	return {ctor: 'ExplainResult', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$DescribeExtendedResult = function (a) {
+	return {ctor: 'DescribeExtendedResult', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$TabularResult = function (a) {
+	return {ctor: 'TabularResult', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$StreamingTextualResult = function (a) {
+	return {ctor: 'StreamingTextualResult', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$StreamingTabularResult = function (a) {
+	return {ctor: 'StreamingTabularResult', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$NoOp = {ctor: 'NoOp'};
+var _connexity$ksql_web$Ksql_Common$ProgressAddRandomMarker = function (a) {
+	return {ctor: 'ProgressAddRandomMarker', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$ProgressTick = function (a) {
+	return {ctor: 'ProgressTick', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$SendWebSocketKeepAlive = function (a) {
+	return {ctor: 'SendWebSocketKeepAlive', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$WebSocketIncoming = function (a) {
+	return {ctor: 'WebSocketIncoming', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$UseNextQueryInHistory = {ctor: 'UseNextQueryInHistory'};
+var _connexity$ksql_web$Ksql_Common$UsePrevQueryInHistory = {ctor: 'UsePrevQueryInHistory'};
+var _connexity$ksql_web$Ksql_Common$UpdateQueryHistory = function (a) {
+	return {ctor: 'UpdateQueryHistory', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$StopQuery = {ctor: 'StopQuery'};
+var _connexity$ksql_web$Ksql_Common$PauseQuery = {ctor: 'PauseQuery'};
+var _connexity$ksql_web$Ksql_Common$RunQuery = {ctor: 'RunQuery'};
+var _connexity$ksql_web$Ksql_Common$ChangeQuery = function (a) {
+	return {ctor: 'ChangeQuery', _0: a};
+};
+var _connexity$ksql_web$Ksql_Common$PerformInTimedState = F2(
+	function (a, b) {
+		return {ctor: 'PerformInTimedState', _0: a, _1: b};
+	});
+
+var _elm_lang$http$Native_Http = function() {
+
+
+// ENCODING AND DECODING
+
+function encodeUri(string)
+{
+	return encodeURIComponent(string);
+}
+
+function decodeUri(string)
+{
+	try
+	{
+		return _elm_lang$core$Maybe$Just(decodeURIComponent(string));
+	}
+	catch(e)
+	{
+		return _elm_lang$core$Maybe$Nothing;
+	}
+}
+
+
+// SEND REQUEST
+
+function toTask(request, maybeProgress)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		var xhr = new XMLHttpRequest();
+
+		configureProgress(xhr, maybeProgress);
+
+		xhr.addEventListener('error', function() {
+			callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NetworkError' }));
+		});
+		xhr.addEventListener('timeout', function() {
+			callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'Timeout' }));
+		});
+		xhr.addEventListener('load', function() {
+			callback(handleResponse(xhr, request.expect.responseToResult));
+		});
+
+		try
+		{
+			xhr.open(request.method, request.url, true);
+		}
+		catch (e)
+		{
+			return callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'BadUrl', _0: request.url }));
+		}
+
+		configureRequest(xhr, request);
+		send(xhr, request.body);
+
+		return function() { xhr.abort(); };
+	});
+}
+
+function configureProgress(xhr, maybeProgress)
+{
+	if (maybeProgress.ctor === 'Nothing')
+	{
+		return;
+	}
+
+	xhr.addEventListener('progress', function(event) {
+		if (!event.lengthComputable)
+		{
+			return;
+		}
+		_elm_lang$core$Native_Scheduler.rawSpawn(maybeProgress._0({
+			bytes: event.loaded,
+			bytesExpected: event.total
+		}));
+	});
+}
+
+function configureRequest(xhr, request)
+{
+	function setHeader(pair)
+	{
+		xhr.setRequestHeader(pair._0, pair._1);
+	}
+
+	A2(_elm_lang$core$List$map, setHeader, request.headers);
+	xhr.responseType = request.expect.responseType;
+	xhr.withCredentials = request.withCredentials;
+
+	if (request.timeout.ctor === 'Just')
+	{
+		xhr.timeout = request.timeout._0;
+	}
+}
+
+function send(xhr, body)
+{
+	switch (body.ctor)
+	{
+		case 'EmptyBody':
+			xhr.send();
+			return;
+
+		case 'StringBody':
+			xhr.setRequestHeader('Content-Type', body._0);
+			xhr.send(body._1);
+			return;
+
+		case 'FormDataBody':
+			xhr.send(body._0);
+			return;
+	}
+}
+
+
+// RESPONSES
+
+function handleResponse(xhr, responseToResult)
+{
+	var response = toResponse(xhr);
+
+	if (xhr.status < 200 || 300 <= xhr.status)
+	{
+		response.body = xhr.responseText;
+		return _elm_lang$core$Native_Scheduler.fail({
+			ctor: 'BadStatus',
+			_0: response
+		});
+	}
+
+	var result = responseToResult(response);
+
+	if (result.ctor === 'Ok')
+	{
+		return _elm_lang$core$Native_Scheduler.succeed(result._0);
+	}
+	else
+	{
+		response.body = xhr.responseText;
+		return _elm_lang$core$Native_Scheduler.fail({
+			ctor: 'BadPayload',
+			_0: result._0,
+			_1: response
+		});
+	}
+}
+
+function toResponse(xhr)
+{
+	return {
+		status: { code: xhr.status, message: xhr.statusText },
+		headers: parseHeaders(xhr.getAllResponseHeaders()),
+		url: xhr.responseURL,
+		body: xhr.response
+	};
+}
+
+function parseHeaders(rawHeaders)
+{
+	var headers = _elm_lang$core$Dict$empty;
+
+	if (!rawHeaders)
+	{
+		return headers;
+	}
+
+	var headerPairs = rawHeaders.split('\u000d\u000a');
+	for (var i = headerPairs.length; i--; )
+	{
+		var headerPair = headerPairs[i];
+		var index = headerPair.indexOf('\u003a\u0020');
+		if (index > 0)
+		{
+			var key = headerPair.substring(0, index);
+			var value = headerPair.substring(index + 2);
+
+			headers = A3(_elm_lang$core$Dict$update, key, function(oldValue) {
+				if (oldValue.ctor === 'Just')
+				{
+					return _elm_lang$core$Maybe$Just(value + ', ' + oldValue._0);
+				}
+				return _elm_lang$core$Maybe$Just(value);
+			}, headers);
+		}
+	}
+
+	return headers;
+}
+
+
+// EXPECTORS
+
+function expectStringResponse(responseToResult)
+{
+	return {
+		responseType: 'text',
+		responseToResult: responseToResult
+	};
+}
+
+function mapExpect(func, expect)
+{
+	return {
+		responseType: expect.responseType,
+		responseToResult: function(response) {
+			var convertedResponse = expect.responseToResult(response);
+			return A2(_elm_lang$core$Result$map, func, convertedResponse);
+		}
+	};
+}
+
+
+// BODY
+
+function multipart(parts)
+{
+	var formData = new FormData();
+
+	while (parts.ctor !== '[]')
+	{
+		var part = parts._0;
+		formData.append(part._0, part._1);
+		parts = parts._1;
+	}
+
+	return { ctor: 'FormDataBody', _0: formData };
+}
+
+return {
+	toTask: F2(toTask),
+	expectStringResponse: expectStringResponse,
+	mapExpect: F2(mapExpect),
+	multipart: multipart,
+	encodeUri: encodeUri,
+	decodeUri: decodeUri
+};
+
+}();
+
+var _elm_lang$http$Http_Internal$map = F2(
+	function (func, request) {
+		return _elm_lang$core$Native_Utils.update(
+			request,
+			{
+				expect: A2(_elm_lang$http$Native_Http.mapExpect, func, request.expect)
+			});
+	});
+var _elm_lang$http$Http_Internal$RawRequest = F7(
+	function (a, b, c, d, e, f, g) {
+		return {method: a, headers: b, url: c, body: d, expect: e, timeout: f, withCredentials: g};
+	});
+var _elm_lang$http$Http_Internal$Request = function (a) {
+	return {ctor: 'Request', _0: a};
+};
+var _elm_lang$http$Http_Internal$Expect = {ctor: 'Expect'};
+var _elm_lang$http$Http_Internal$FormDataBody = {ctor: 'FormDataBody'};
+var _elm_lang$http$Http_Internal$StringBody = F2(
+	function (a, b) {
+		return {ctor: 'StringBody', _0: a, _1: b};
+	});
+var _elm_lang$http$Http_Internal$EmptyBody = {ctor: 'EmptyBody'};
+var _elm_lang$http$Http_Internal$Header = F2(
+	function (a, b) {
+		return {ctor: 'Header', _0: a, _1: b};
+	});
+
 var _elm_lang$core$Json_Decode$null = _elm_lang$core$Native_Json.decodeNull;
 var _elm_lang$core$Json_Decode$value = _elm_lang$core$Native_Json.decodePrimitive('value');
 var _elm_lang$core$Json_Decode$andThen = _elm_lang$core$Native_Json.andThen;
@@ -6162,6 +7211,2357 @@ var _elm_lang$core$Json_Decode$int = _elm_lang$core$Native_Json.decodePrimitive(
 var _elm_lang$core$Json_Decode$bool = _elm_lang$core$Native_Json.decodePrimitive('bool');
 var _elm_lang$core$Json_Decode$string = _elm_lang$core$Native_Json.decodePrimitive('string');
 var _elm_lang$core$Json_Decode$Decoder = {ctor: 'Decoder'};
+
+var _elm_lang$http$Http$decodeUri = _elm_lang$http$Native_Http.decodeUri;
+var _elm_lang$http$Http$encodeUri = _elm_lang$http$Native_Http.encodeUri;
+var _elm_lang$http$Http$expectStringResponse = _elm_lang$http$Native_Http.expectStringResponse;
+var _elm_lang$http$Http$expectJson = function (decoder) {
+	return _elm_lang$http$Http$expectStringResponse(
+		function (response) {
+			return A2(_elm_lang$core$Json_Decode$decodeString, decoder, response.body);
+		});
+};
+var _elm_lang$http$Http$expectString = _elm_lang$http$Http$expectStringResponse(
+	function (response) {
+		return _elm_lang$core$Result$Ok(response.body);
+	});
+var _elm_lang$http$Http$multipartBody = _elm_lang$http$Native_Http.multipart;
+var _elm_lang$http$Http$stringBody = _elm_lang$http$Http_Internal$StringBody;
+var _elm_lang$http$Http$jsonBody = function (value) {
+	return A2(
+		_elm_lang$http$Http_Internal$StringBody,
+		'application/json',
+		A2(_elm_lang$core$Json_Encode$encode, 0, value));
+};
+var _elm_lang$http$Http$emptyBody = _elm_lang$http$Http_Internal$EmptyBody;
+var _elm_lang$http$Http$header = _elm_lang$http$Http_Internal$Header;
+var _elm_lang$http$Http$request = _elm_lang$http$Http_Internal$Request;
+var _elm_lang$http$Http$post = F3(
+	function (url, body, decoder) {
+		return _elm_lang$http$Http$request(
+			{
+				method: 'POST',
+				headers: {ctor: '[]'},
+				url: url,
+				body: body,
+				expect: _elm_lang$http$Http$expectJson(decoder),
+				timeout: _elm_lang$core$Maybe$Nothing,
+				withCredentials: false
+			});
+	});
+var _elm_lang$http$Http$get = F2(
+	function (url, decoder) {
+		return _elm_lang$http$Http$request(
+			{
+				method: 'GET',
+				headers: {ctor: '[]'},
+				url: url,
+				body: _elm_lang$http$Http$emptyBody,
+				expect: _elm_lang$http$Http$expectJson(decoder),
+				timeout: _elm_lang$core$Maybe$Nothing,
+				withCredentials: false
+			});
+	});
+var _elm_lang$http$Http$getString = function (url) {
+	return _elm_lang$http$Http$request(
+		{
+			method: 'GET',
+			headers: {ctor: '[]'},
+			url: url,
+			body: _elm_lang$http$Http$emptyBody,
+			expect: _elm_lang$http$Http$expectString,
+			timeout: _elm_lang$core$Maybe$Nothing,
+			withCredentials: false
+		});
+};
+var _elm_lang$http$Http$toTask = function (_p0) {
+	var _p1 = _p0;
+	return A2(_elm_lang$http$Native_Http.toTask, _p1._0, _elm_lang$core$Maybe$Nothing);
+};
+var _elm_lang$http$Http$send = F2(
+	function (resultToMessage, request) {
+		return A2(
+			_elm_lang$core$Task$attempt,
+			resultToMessage,
+			_elm_lang$http$Http$toTask(request));
+	});
+var _elm_lang$http$Http$Response = F4(
+	function (a, b, c, d) {
+		return {url: a, status: b, headers: c, body: d};
+	});
+var _elm_lang$http$Http$BadPayload = F2(
+	function (a, b) {
+		return {ctor: 'BadPayload', _0: a, _1: b};
+	});
+var _elm_lang$http$Http$BadStatus = function (a) {
+	return {ctor: 'BadStatus', _0: a};
+};
+var _elm_lang$http$Http$NetworkError = {ctor: 'NetworkError'};
+var _elm_lang$http$Http$Timeout = {ctor: 'Timeout'};
+var _elm_lang$http$Http$BadUrl = function (a) {
+	return {ctor: 'BadUrl', _0: a};
+};
+var _elm_lang$http$Http$StringPart = F2(
+	function (a, b) {
+		return {ctor: 'StringPart', _0: a, _1: b};
+	});
+var _elm_lang$http$Http$stringPart = _elm_lang$http$Http$StringPart;
+
+var _connexity$ksql_web$Ksql_Port$localStorageSetQueryHistoryCmd = _elm_lang$core$Native_Platform.outgoingPort(
+	'localStorageSetQueryHistoryCmd',
+	function (v) {
+		return _elm_lang$core$Native_List.toArray(v).map(
+			function (v) {
+				return v;
+			});
+	});
+var _connexity$ksql_web$Ksql_Port$localStorageGetQueryHistoryCmd = _elm_lang$core$Native_Platform.outgoingPort(
+	'localStorageGetQueryHistoryCmd',
+	function (v) {
+		return null;
+	});
+var _connexity$ksql_web$Ksql_Port$localStorageGetQueryHistorySub = _elm_lang$core$Native_Platform.incomingPort(
+	'localStorageGetQueryHistorySub',
+	_elm_lang$core$Json_Decode$list(_elm_lang$core$Json_Decode$string));
+var _connexity$ksql_web$Ksql_Port$codeMirrorFromTextAreaCmd = _elm_lang$core$Native_Platform.outgoingPort(
+	'codeMirrorFromTextAreaCmd',
+	function (v) {
+		return v;
+	});
+var _connexity$ksql_web$Ksql_Port$codeMirrorDocSetValueCursorCmd = _elm_lang$core$Native_Platform.outgoingPort(
+	'codeMirrorDocSetValueCursorCmd',
+	function (v) {
+		return {
+			value: v.value,
+			cursor: {ch: v.cursor.ch, line: v.cursor.line}
+		};
+	});
+var _connexity$ksql_web$Ksql_Port$codeMirrorDocValueChangedSub = _elm_lang$core$Native_Platform.incomingPort('codeMirrorDocValueChangedSub', _elm_lang$core$Json_Decode$string);
+var _connexity$ksql_web$Ksql_Port$codeMirrorKeyMapRunQuerySub = _elm_lang$core$Native_Platform.incomingPort(
+	'codeMirrorKeyMapRunQuerySub',
+	_elm_lang$core$Json_Decode$null(
+		{ctor: '_Tuple0'}));
+var _connexity$ksql_web$Ksql_Port$codeMirrorKeyMapPrevInHistorySub = _elm_lang$core$Native_Platform.incomingPort(
+	'codeMirrorKeyMapPrevInHistorySub',
+	_elm_lang$core$Json_Decode$null(
+		{ctor: '_Tuple0'}));
+var _connexity$ksql_web$Ksql_Port$codeMirrorKeyMapNextInHistorySub = _elm_lang$core$Native_Platform.incomingPort(
+	'codeMirrorKeyMapNextInHistorySub',
+	_elm_lang$core$Json_Decode$null(
+		{ctor: '_Tuple0'}));
+
+var _connexity$ksql_web$Ksql_Init$searchParts = function (search) {
+	return A2(
+		_elm_lang$core$String$split,
+		'&',
+		A2(_elm_lang$core$String$dropLeft, 1, search));
+};
+var _connexity$ksql_web$Ksql_Init$queryTextFromSearch = function (search) {
+	return _elm_lang$core$List$head(
+		A2(
+			_elm_lang$core$List$filterMap,
+			function (searchPart) {
+				var _p0 = A2(_elm_lang$core$String$split, '=', searchPart);
+				if ((((_p0.ctor === '::') && (_p0._0 === 'query')) && (_p0._1.ctor === '::')) && (_p0._1._1.ctor === '[]')) {
+					return _elm_lang$http$Http$decodeUri(_p0._1._0);
+				} else {
+					return _elm_lang$core$Maybe$Nothing;
+				}
+			},
+			_connexity$ksql_web$Ksql_Init$searchParts(search)));
+};
+var _connexity$ksql_web$Ksql_Init$runOnInit = function (search) {
+	return !_elm_lang$core$List$isEmpty(
+		A2(
+			_elm_lang$core$List$filter,
+			_elm_lang$core$String$startsWith('run'),
+			_connexity$ksql_web$Ksql_Init$searchParts(search)));
+};
+var _connexity$ksql_web$Ksql_Init$init = function (flags) {
+	return {
+		ctor: '_Tuple2',
+		_0: A6(
+			_connexity$ksql_web$Ksql_Common$Model,
+			flags,
+			_connexity$ksql_web$Ksql_Common$Idle,
+			A3(
+				_connexity$ksql_web$Ksql_Common$Query,
+				flags.queryHistory,
+				-1,
+				A2(_elm_lang$core$Dict$singleton, -1, '')),
+			_elm_lang$core$Maybe$Nothing,
+			{ctor: '[]'},
+			{ctor: '[]'}),
+		_1: _elm_lang$core$Platform_Cmd$batch(
+			{
+				ctor: '::',
+				_0: A2(
+					_elm_lang$core$Task$perform,
+					function (_p1) {
+						return A2(
+							_connexity$ksql_web$Ksql_Common$PerformInTimedState,
+							function () {
+								var _p2 = {
+									ctor: '_Tuple2',
+									_0: _connexity$ksql_web$Ksql_Init$runOnInit(flags.search),
+									_1: _connexity$ksql_web$Ksql_Init$queryTextFromSearch(flags.search)
+								};
+								if (((_p2.ctor === '_Tuple2') && (_p2._0 === true)) && (_p2._1.ctor === 'Just')) {
+									return A2(_connexity$ksql_web$Ksql_Common$sendQuery, flags, _p2._1._0);
+								} else {
+									return _elm_lang$core$Platform_Cmd$none;
+								}
+							}(),
+							_connexity$ksql_web$Ksql_Common$Initializing(
+								A2(_connexity$ksql_web$Ksql_Common$DeterminateProgress, 0, _p1)));
+					},
+					_elm_lang$core$Time$now),
+				_1: {
+					ctor: '::',
+					_0: function () {
+						var value = A2(
+							_elm_lang$core$Maybe$withDefault,
+							'',
+							_connexity$ksql_web$Ksql_Init$queryTextFromSearch(flags.search));
+						return _connexity$ksql_web$Ksql_Port$codeMirrorDocSetValueCursorCmd(
+							{
+								value: value,
+								cursor: {
+									line: _elm_lang$core$List$length(
+										_elm_lang$core$String$lines(value)),
+									ch: 0
+								}
+							});
+					}(),
+					_1: {
+						ctor: '::',
+						_0: _connexity$ksql_web$Ksql_Port$codeMirrorFromTextAreaCmd('source'),
+						_1: {ctor: '[]'}
+					}
+				}
+			})
+	};
+};
+
+var _elm_lang$dom$Native_Dom = function() {
+
+var fakeNode = {
+	addEventListener: function() {},
+	removeEventListener: function() {}
+};
+
+var onDocument = on(typeof document !== 'undefined' ? document : fakeNode);
+var onWindow = on(typeof window !== 'undefined' ? window : fakeNode);
+
+function on(node)
+{
+	return function(eventName, decoder, toTask)
+	{
+		return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
+
+			function performTask(event)
+			{
+				var result = A2(_elm_lang$core$Json_Decode$decodeValue, decoder, event);
+				if (result.ctor === 'Ok')
+				{
+					_elm_lang$core$Native_Scheduler.rawSpawn(toTask(result._0));
+				}
+			}
+
+			node.addEventListener(eventName, performTask);
+
+			return function()
+			{
+				node.removeEventListener(eventName, performTask);
+			};
+		});
+	};
+}
+
+var rAF = typeof requestAnimationFrame !== 'undefined'
+	? requestAnimationFrame
+	: function(callback) { callback(); };
+
+function withNode(id, doStuff)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		rAF(function()
+		{
+			var node = document.getElementById(id);
+			if (node === null)
+			{
+				callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NotFound', _0: id }));
+				return;
+			}
+			callback(_elm_lang$core$Native_Scheduler.succeed(doStuff(node)));
+		});
+	});
+}
+
+
+// FOCUS
+
+function focus(id)
+{
+	return withNode(id, function(node) {
+		node.focus();
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function blur(id)
+{
+	return withNode(id, function(node) {
+		node.blur();
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+
+// SCROLLING
+
+function getScrollTop(id)
+{
+	return withNode(id, function(node) {
+		return node.scrollTop;
+	});
+}
+
+function setScrollTop(id, desiredScrollTop)
+{
+	return withNode(id, function(node) {
+		node.scrollTop = desiredScrollTop;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function toBottom(id)
+{
+	return withNode(id, function(node) {
+		node.scrollTop = node.scrollHeight;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function getScrollLeft(id)
+{
+	return withNode(id, function(node) {
+		return node.scrollLeft;
+	});
+}
+
+function setScrollLeft(id, desiredScrollLeft)
+{
+	return withNode(id, function(node) {
+		node.scrollLeft = desiredScrollLeft;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+function toRight(id)
+{
+	return withNode(id, function(node) {
+		node.scrollLeft = node.scrollWidth;
+		return _elm_lang$core$Native_Utils.Tuple0;
+	});
+}
+
+
+// SIZE
+
+function width(options, id)
+{
+	return withNode(id, function(node) {
+		switch (options.ctor)
+		{
+			case 'Content':
+				return node.scrollWidth;
+			case 'VisibleContent':
+				return node.clientWidth;
+			case 'VisibleContentWithBorders':
+				return node.offsetWidth;
+			case 'VisibleContentWithBordersAndMargins':
+				var rect = node.getBoundingClientRect();
+				return rect.right - rect.left;
+		}
+	});
+}
+
+function height(options, id)
+{
+	return withNode(id, function(node) {
+		switch (options.ctor)
+		{
+			case 'Content':
+				return node.scrollHeight;
+			case 'VisibleContent':
+				return node.clientHeight;
+			case 'VisibleContentWithBorders':
+				return node.offsetHeight;
+			case 'VisibleContentWithBordersAndMargins':
+				var rect = node.getBoundingClientRect();
+				return rect.bottom - rect.top;
+		}
+	});
+}
+
+return {
+	onDocument: F3(onDocument),
+	onWindow: F3(onWindow),
+
+	focus: focus,
+	blur: blur,
+
+	getScrollTop: getScrollTop,
+	setScrollTop: F2(setScrollTop),
+	getScrollLeft: getScrollLeft,
+	setScrollLeft: F2(setScrollLeft),
+	toBottom: toBottom,
+	toRight: toRight,
+
+	height: F2(height),
+	width: F2(width)
+};
+
+}();
+
+var _elm_lang$dom$Dom_LowLevel$onWindow = _elm_lang$dom$Native_Dom.onWindow;
+var _elm_lang$dom$Dom_LowLevel$onDocument = _elm_lang$dom$Native_Dom.onDocument;
+
+var _elm_lang$keyboard$Keyboard$onSelfMsg = F3(
+	function (router, _p0, state) {
+		var _p1 = _p0;
+		var _p2 = A2(_elm_lang$core$Dict$get, _p1.category, state);
+		if (_p2.ctor === 'Nothing') {
+			return _elm_lang$core$Task$succeed(state);
+		} else {
+			var send = function (tagger) {
+				return A2(
+					_elm_lang$core$Platform$sendToApp,
+					router,
+					tagger(_p1.keyCode));
+			};
+			return A2(
+				_elm_lang$core$Task$andThen,
+				function (_p3) {
+					return _elm_lang$core$Task$succeed(state);
+				},
+				_elm_lang$core$Task$sequence(
+					A2(_elm_lang$core$List$map, send, _p2._0.taggers)));
+		}
+	});
+var _elm_lang$keyboard$Keyboard_ops = _elm_lang$keyboard$Keyboard_ops || {};
+_elm_lang$keyboard$Keyboard_ops['&>'] = F2(
+	function (task1, task2) {
+		return A2(
+			_elm_lang$core$Task$andThen,
+			function (_p4) {
+				return task2;
+			},
+			task1);
+	});
+var _elm_lang$keyboard$Keyboard$init = _elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty);
+var _elm_lang$keyboard$Keyboard$categorizeHelpHelp = F2(
+	function (value, maybeValues) {
+		var _p5 = maybeValues;
+		if (_p5.ctor === 'Nothing') {
+			return _elm_lang$core$Maybe$Just(
+				{
+					ctor: '::',
+					_0: value,
+					_1: {ctor: '[]'}
+				});
+		} else {
+			return _elm_lang$core$Maybe$Just(
+				{ctor: '::', _0: value, _1: _p5._0});
+		}
+	});
+var _elm_lang$keyboard$Keyboard$categorizeHelp = F2(
+	function (subs, subDict) {
+		categorizeHelp:
+		while (true) {
+			var _p6 = subs;
+			if (_p6.ctor === '[]') {
+				return subDict;
+			} else {
+				var _v4 = _p6._1,
+					_v5 = A3(
+					_elm_lang$core$Dict$update,
+					_p6._0._0,
+					_elm_lang$keyboard$Keyboard$categorizeHelpHelp(_p6._0._1),
+					subDict);
+				subs = _v4;
+				subDict = _v5;
+				continue categorizeHelp;
+			}
+		}
+	});
+var _elm_lang$keyboard$Keyboard$categorize = function (subs) {
+	return A2(_elm_lang$keyboard$Keyboard$categorizeHelp, subs, _elm_lang$core$Dict$empty);
+};
+var _elm_lang$keyboard$Keyboard$keyCode = A2(_elm_lang$core$Json_Decode$field, 'keyCode', _elm_lang$core$Json_Decode$int);
+var _elm_lang$keyboard$Keyboard$subscription = _elm_lang$core$Native_Platform.leaf('Keyboard');
+var _elm_lang$keyboard$Keyboard$Watcher = F2(
+	function (a, b) {
+		return {taggers: a, pid: b};
+	});
+var _elm_lang$keyboard$Keyboard$Msg = F2(
+	function (a, b) {
+		return {category: a, keyCode: b};
+	});
+var _elm_lang$keyboard$Keyboard$onEffects = F3(
+	function (router, newSubs, oldState) {
+		var rightStep = F3(
+			function (category, taggers, task) {
+				return A2(
+					_elm_lang$core$Task$andThen,
+					function (state) {
+						return A2(
+							_elm_lang$core$Task$andThen,
+							function (pid) {
+								return _elm_lang$core$Task$succeed(
+									A3(
+										_elm_lang$core$Dict$insert,
+										category,
+										A2(_elm_lang$keyboard$Keyboard$Watcher, taggers, pid),
+										state));
+							},
+							_elm_lang$core$Process$spawn(
+								A3(
+									_elm_lang$dom$Dom_LowLevel$onDocument,
+									category,
+									_elm_lang$keyboard$Keyboard$keyCode,
+									function (_p7) {
+										return A2(
+											_elm_lang$core$Platform$sendToSelf,
+											router,
+											A2(_elm_lang$keyboard$Keyboard$Msg, category, _p7));
+									})));
+					},
+					task);
+			});
+		var bothStep = F4(
+			function (category, _p8, taggers, task) {
+				var _p9 = _p8;
+				return A2(
+					_elm_lang$core$Task$map,
+					A2(
+						_elm_lang$core$Dict$insert,
+						category,
+						A2(_elm_lang$keyboard$Keyboard$Watcher, taggers, _p9.pid)),
+					task);
+			});
+		var leftStep = F3(
+			function (category, _p10, task) {
+				var _p11 = _p10;
+				return A2(
+					_elm_lang$keyboard$Keyboard_ops['&>'],
+					_elm_lang$core$Process$kill(_p11.pid),
+					task);
+			});
+		return A6(
+			_elm_lang$core$Dict$merge,
+			leftStep,
+			bothStep,
+			rightStep,
+			oldState,
+			_elm_lang$keyboard$Keyboard$categorize(newSubs),
+			_elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty));
+	});
+var _elm_lang$keyboard$Keyboard$MySub = F2(
+	function (a, b) {
+		return {ctor: 'MySub', _0: a, _1: b};
+	});
+var _elm_lang$keyboard$Keyboard$presses = function (tagger) {
+	return _elm_lang$keyboard$Keyboard$subscription(
+		A2(_elm_lang$keyboard$Keyboard$MySub, 'keypress', tagger));
+};
+var _elm_lang$keyboard$Keyboard$downs = function (tagger) {
+	return _elm_lang$keyboard$Keyboard$subscription(
+		A2(_elm_lang$keyboard$Keyboard$MySub, 'keydown', tagger));
+};
+var _elm_lang$keyboard$Keyboard$ups = function (tagger) {
+	return _elm_lang$keyboard$Keyboard$subscription(
+		A2(_elm_lang$keyboard$Keyboard$MySub, 'keyup', tagger));
+};
+var _elm_lang$keyboard$Keyboard$subMap = F2(
+	function (func, _p12) {
+		var _p13 = _p12;
+		return A2(
+			_elm_lang$keyboard$Keyboard$MySub,
+			_p13._0,
+			function (_p14) {
+				return func(
+					_p13._1(_p14));
+			});
+	});
+_elm_lang$core$Native_Platform.effectManagers['Keyboard'] = {pkg: 'elm-lang/keyboard', init: _elm_lang$keyboard$Keyboard$init, onEffects: _elm_lang$keyboard$Keyboard$onEffects, onSelfMsg: _elm_lang$keyboard$Keyboard$onSelfMsg, tag: 'sub', subMap: _elm_lang$keyboard$Keyboard$subMap};
+
+var _connexity$ksql_web$Ksql_Subscriptions$progressTickPeriod = 200 * _elm_lang$core$Time$millisecond;
+var _connexity$ksql_web$Ksql_Subscriptions$subscriptions = function (model) {
+	return _elm_lang$core$Platform_Sub$batch(
+		{
+			ctor: '::',
+			_0: _connexity$ksql_web$Ksql_Port$localStorageGetQueryHistorySub(_connexity$ksql_web$Ksql_Common$UpdateQueryHistory),
+			_1: {
+				ctor: '::',
+				_0: _connexity$ksql_web$Ksql_Port$codeMirrorDocValueChangedSub(_connexity$ksql_web$Ksql_Common$ChangeQuery),
+				_1: {
+					ctor: '::',
+					_0: _connexity$ksql_web$Ksql_Port$codeMirrorKeyMapRunQuerySub(
+						_elm_lang$core$Basics$always(_connexity$ksql_web$Ksql_Common$RunQuery)),
+					_1: {
+						ctor: '::',
+						_0: _connexity$ksql_web$Ksql_Port$codeMirrorKeyMapPrevInHistorySub(
+							_elm_lang$core$Basics$always(_connexity$ksql_web$Ksql_Common$UsePrevQueryInHistory)),
+						_1: {
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Port$codeMirrorKeyMapNextInHistorySub(
+								_elm_lang$core$Basics$always(_connexity$ksql_web$Ksql_Common$UseNextQueryInHistory)),
+							_1: {
+								ctor: '::',
+								_0: _elm_lang$keyboard$Keyboard$presses(
+									function (code) {
+										var _p0 = code;
+										switch (_p0) {
+											case 3:
+												return _connexity$ksql_web$Ksql_Common$StopQuery;
+											case 26:
+												return _connexity$ksql_web$Ksql_Common$PauseQuery;
+											default:
+												return _connexity$ksql_web$Ksql_Common$NoOp;
+										}
+									}),
+								_1: {
+									ctor: '::',
+									_0: A2(_elm_lang$core$Time$every, 60 * _elm_lang$core$Time$second, _connexity$ksql_web$Ksql_Common$SendWebSocketKeepAlive),
+									_1: {
+										ctor: '::',
+										_0: A2(
+											_elm_lang$websocket$WebSocket$listen,
+											_connexity$ksql_web$Ksql_Common$webSocketUrl(model.flags),
+											_connexity$ksql_web$Ksql_Common$WebSocketIncoming),
+										_1: {
+											ctor: '::',
+											_0: function () {
+												var _p1 = model.state;
+												if (_p1.ctor === 'Idle') {
+													return _elm_lang$core$Platform_Sub$none;
+												} else {
+													return A2(_elm_lang$core$Time$every, _connexity$ksql_web$Ksql_Subscriptions$progressTickPeriod, _connexity$ksql_web$Ksql_Common$ProgressTick);
+												}
+											}(),
+											_1: {ctor: '[]'}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+};
+
+var _elm_lang$dom$Dom$blur = _elm_lang$dom$Native_Dom.blur;
+var _elm_lang$dom$Dom$focus = _elm_lang$dom$Native_Dom.focus;
+var _elm_lang$dom$Dom$NotFound = function (a) {
+	return {ctor: 'NotFound', _0: a};
+};
+
+var _elm_lang$dom$Dom_Size$width = _elm_lang$dom$Native_Dom.width;
+var _elm_lang$dom$Dom_Size$height = _elm_lang$dom$Native_Dom.height;
+var _elm_lang$dom$Dom_Size$VisibleContentWithBordersAndMargins = {ctor: 'VisibleContentWithBordersAndMargins'};
+var _elm_lang$dom$Dom_Size$VisibleContentWithBorders = {ctor: 'VisibleContentWithBorders'};
+var _elm_lang$dom$Dom_Size$VisibleContent = {ctor: 'VisibleContent'};
+var _elm_lang$dom$Dom_Size$Content = {ctor: 'Content'};
+
+var _elm_lang$dom$Dom_Scroll$toX = _elm_lang$dom$Native_Dom.setScrollLeft;
+var _elm_lang$dom$Dom_Scroll$x = _elm_lang$dom$Native_Dom.getScrollLeft;
+var _elm_lang$dom$Dom_Scroll$toRight = _elm_lang$dom$Native_Dom.toRight;
+var _elm_lang$dom$Dom_Scroll$toLeft = function (id) {
+	return A2(_elm_lang$dom$Dom_Scroll$toX, id, 0);
+};
+var _elm_lang$dom$Dom_Scroll$toY = _elm_lang$dom$Native_Dom.setScrollTop;
+var _elm_lang$dom$Dom_Scroll$y = _elm_lang$dom$Native_Dom.getScrollTop;
+var _elm_lang$dom$Dom_Scroll$toBottom = _elm_lang$dom$Native_Dom.toBottom;
+var _elm_lang$dom$Dom_Scroll$toTop = function (id) {
+	return A2(_elm_lang$dom$Dom_Scroll$toY, id, 0);
+};
+
+var _elm_lang$core$Random$onSelfMsg = F3(
+	function (_p1, _p0, seed) {
+		return _elm_lang$core$Task$succeed(seed);
+	});
+var _elm_lang$core$Random$magicNum8 = 2147483562;
+var _elm_lang$core$Random$range = function (_p2) {
+	return {ctor: '_Tuple2', _0: 0, _1: _elm_lang$core$Random$magicNum8};
+};
+var _elm_lang$core$Random$magicNum7 = 2147483399;
+var _elm_lang$core$Random$magicNum6 = 2147483563;
+var _elm_lang$core$Random$magicNum5 = 3791;
+var _elm_lang$core$Random$magicNum4 = 40692;
+var _elm_lang$core$Random$magicNum3 = 52774;
+var _elm_lang$core$Random$magicNum2 = 12211;
+var _elm_lang$core$Random$magicNum1 = 53668;
+var _elm_lang$core$Random$magicNum0 = 40014;
+var _elm_lang$core$Random$step = F2(
+	function (_p3, seed) {
+		var _p4 = _p3;
+		return _p4._0(seed);
+	});
+var _elm_lang$core$Random$onEffects = F3(
+	function (router, commands, seed) {
+		var _p5 = commands;
+		if (_p5.ctor === '[]') {
+			return _elm_lang$core$Task$succeed(seed);
+		} else {
+			var _p6 = A2(_elm_lang$core$Random$step, _p5._0._0, seed);
+			var value = _p6._0;
+			var newSeed = _p6._1;
+			return A2(
+				_elm_lang$core$Task$andThen,
+				function (_p7) {
+					return A3(_elm_lang$core$Random$onEffects, router, _p5._1, newSeed);
+				},
+				A2(_elm_lang$core$Platform$sendToApp, router, value));
+		}
+	});
+var _elm_lang$core$Random$listHelp = F4(
+	function (list, n, generate, seed) {
+		listHelp:
+		while (true) {
+			if (_elm_lang$core$Native_Utils.cmp(n, 1) < 0) {
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$List$reverse(list),
+					_1: seed
+				};
+			} else {
+				var _p8 = generate(seed);
+				var value = _p8._0;
+				var newSeed = _p8._1;
+				var _v2 = {ctor: '::', _0: value, _1: list},
+					_v3 = n - 1,
+					_v4 = generate,
+					_v5 = newSeed;
+				list = _v2;
+				n = _v3;
+				generate = _v4;
+				seed = _v5;
+				continue listHelp;
+			}
+		}
+	});
+var _elm_lang$core$Random$minInt = -2147483648;
+var _elm_lang$core$Random$maxInt = 2147483647;
+var _elm_lang$core$Random$iLogBase = F2(
+	function (b, i) {
+		return (_elm_lang$core$Native_Utils.cmp(i, b) < 0) ? 1 : (1 + A2(_elm_lang$core$Random$iLogBase, b, (i / b) | 0));
+	});
+var _elm_lang$core$Random$command = _elm_lang$core$Native_Platform.leaf('Random');
+var _elm_lang$core$Random$Generator = function (a) {
+	return {ctor: 'Generator', _0: a};
+};
+var _elm_lang$core$Random$list = F2(
+	function (n, _p9) {
+		var _p10 = _p9;
+		return _elm_lang$core$Random$Generator(
+			function (seed) {
+				return A4(
+					_elm_lang$core$Random$listHelp,
+					{ctor: '[]'},
+					n,
+					_p10._0,
+					seed);
+			});
+	});
+var _elm_lang$core$Random$map = F2(
+	function (func, _p11) {
+		var _p12 = _p11;
+		return _elm_lang$core$Random$Generator(
+			function (seed0) {
+				var _p13 = _p12._0(seed0);
+				var a = _p13._0;
+				var seed1 = _p13._1;
+				return {
+					ctor: '_Tuple2',
+					_0: func(a),
+					_1: seed1
+				};
+			});
+	});
+var _elm_lang$core$Random$map2 = F3(
+	function (func, _p15, _p14) {
+		var _p16 = _p15;
+		var _p17 = _p14;
+		return _elm_lang$core$Random$Generator(
+			function (seed0) {
+				var _p18 = _p16._0(seed0);
+				var a = _p18._0;
+				var seed1 = _p18._1;
+				var _p19 = _p17._0(seed1);
+				var b = _p19._0;
+				var seed2 = _p19._1;
+				return {
+					ctor: '_Tuple2',
+					_0: A2(func, a, b),
+					_1: seed2
+				};
+			});
+	});
+var _elm_lang$core$Random$pair = F2(
+	function (genA, genB) {
+		return A3(
+			_elm_lang$core$Random$map2,
+			F2(
+				function (v0, v1) {
+					return {ctor: '_Tuple2', _0: v0, _1: v1};
+				}),
+			genA,
+			genB);
+	});
+var _elm_lang$core$Random$map3 = F4(
+	function (func, _p22, _p21, _p20) {
+		var _p23 = _p22;
+		var _p24 = _p21;
+		var _p25 = _p20;
+		return _elm_lang$core$Random$Generator(
+			function (seed0) {
+				var _p26 = _p23._0(seed0);
+				var a = _p26._0;
+				var seed1 = _p26._1;
+				var _p27 = _p24._0(seed1);
+				var b = _p27._0;
+				var seed2 = _p27._1;
+				var _p28 = _p25._0(seed2);
+				var c = _p28._0;
+				var seed3 = _p28._1;
+				return {
+					ctor: '_Tuple2',
+					_0: A3(func, a, b, c),
+					_1: seed3
+				};
+			});
+	});
+var _elm_lang$core$Random$map4 = F5(
+	function (func, _p32, _p31, _p30, _p29) {
+		var _p33 = _p32;
+		var _p34 = _p31;
+		var _p35 = _p30;
+		var _p36 = _p29;
+		return _elm_lang$core$Random$Generator(
+			function (seed0) {
+				var _p37 = _p33._0(seed0);
+				var a = _p37._0;
+				var seed1 = _p37._1;
+				var _p38 = _p34._0(seed1);
+				var b = _p38._0;
+				var seed2 = _p38._1;
+				var _p39 = _p35._0(seed2);
+				var c = _p39._0;
+				var seed3 = _p39._1;
+				var _p40 = _p36._0(seed3);
+				var d = _p40._0;
+				var seed4 = _p40._1;
+				return {
+					ctor: '_Tuple2',
+					_0: A4(func, a, b, c, d),
+					_1: seed4
+				};
+			});
+	});
+var _elm_lang$core$Random$map5 = F6(
+	function (func, _p45, _p44, _p43, _p42, _p41) {
+		var _p46 = _p45;
+		var _p47 = _p44;
+		var _p48 = _p43;
+		var _p49 = _p42;
+		var _p50 = _p41;
+		return _elm_lang$core$Random$Generator(
+			function (seed0) {
+				var _p51 = _p46._0(seed0);
+				var a = _p51._0;
+				var seed1 = _p51._1;
+				var _p52 = _p47._0(seed1);
+				var b = _p52._0;
+				var seed2 = _p52._1;
+				var _p53 = _p48._0(seed2);
+				var c = _p53._0;
+				var seed3 = _p53._1;
+				var _p54 = _p49._0(seed3);
+				var d = _p54._0;
+				var seed4 = _p54._1;
+				var _p55 = _p50._0(seed4);
+				var e = _p55._0;
+				var seed5 = _p55._1;
+				return {
+					ctor: '_Tuple2',
+					_0: A5(func, a, b, c, d, e),
+					_1: seed5
+				};
+			});
+	});
+var _elm_lang$core$Random$andThen = F2(
+	function (callback, _p56) {
+		var _p57 = _p56;
+		return _elm_lang$core$Random$Generator(
+			function (seed) {
+				var _p58 = _p57._0(seed);
+				var result = _p58._0;
+				var newSeed = _p58._1;
+				var _p59 = callback(result);
+				var genB = _p59._0;
+				return genB(newSeed);
+			});
+	});
+var _elm_lang$core$Random$State = F2(
+	function (a, b) {
+		return {ctor: 'State', _0: a, _1: b};
+	});
+var _elm_lang$core$Random$initState = function (seed) {
+	var s = A2(_elm_lang$core$Basics$max, seed, 0 - seed);
+	var q = (s / (_elm_lang$core$Random$magicNum6 - 1)) | 0;
+	var s2 = A2(_elm_lang$core$Basics_ops['%'], q, _elm_lang$core$Random$magicNum7 - 1);
+	var s1 = A2(_elm_lang$core$Basics_ops['%'], s, _elm_lang$core$Random$magicNum6 - 1);
+	return A2(_elm_lang$core$Random$State, s1 + 1, s2 + 1);
+};
+var _elm_lang$core$Random$next = function (_p60) {
+	var _p61 = _p60;
+	var _p63 = _p61._1;
+	var _p62 = _p61._0;
+	var k2 = (_p63 / _elm_lang$core$Random$magicNum3) | 0;
+	var rawState2 = (_elm_lang$core$Random$magicNum4 * (_p63 - (k2 * _elm_lang$core$Random$magicNum3))) - (k2 * _elm_lang$core$Random$magicNum5);
+	var newState2 = (_elm_lang$core$Native_Utils.cmp(rawState2, 0) < 0) ? (rawState2 + _elm_lang$core$Random$magicNum7) : rawState2;
+	var k1 = (_p62 / _elm_lang$core$Random$magicNum1) | 0;
+	var rawState1 = (_elm_lang$core$Random$magicNum0 * (_p62 - (k1 * _elm_lang$core$Random$magicNum1))) - (k1 * _elm_lang$core$Random$magicNum2);
+	var newState1 = (_elm_lang$core$Native_Utils.cmp(rawState1, 0) < 0) ? (rawState1 + _elm_lang$core$Random$magicNum6) : rawState1;
+	var z = newState1 - newState2;
+	var newZ = (_elm_lang$core$Native_Utils.cmp(z, 1) < 0) ? (z + _elm_lang$core$Random$magicNum8) : z;
+	return {
+		ctor: '_Tuple2',
+		_0: newZ,
+		_1: A2(_elm_lang$core$Random$State, newState1, newState2)
+	};
+};
+var _elm_lang$core$Random$split = function (_p64) {
+	var _p65 = _p64;
+	var _p68 = _p65._1;
+	var _p67 = _p65._0;
+	var _p66 = _elm_lang$core$Tuple$second(
+		_elm_lang$core$Random$next(_p65));
+	var t1 = _p66._0;
+	var t2 = _p66._1;
+	var new_s2 = _elm_lang$core$Native_Utils.eq(_p68, 1) ? (_elm_lang$core$Random$magicNum7 - 1) : (_p68 - 1);
+	var new_s1 = _elm_lang$core$Native_Utils.eq(_p67, _elm_lang$core$Random$magicNum6 - 1) ? 1 : (_p67 + 1);
+	return {
+		ctor: '_Tuple2',
+		_0: A2(_elm_lang$core$Random$State, new_s1, t2),
+		_1: A2(_elm_lang$core$Random$State, t1, new_s2)
+	};
+};
+var _elm_lang$core$Random$Seed = function (a) {
+	return {ctor: 'Seed', _0: a};
+};
+var _elm_lang$core$Random$int = F2(
+	function (a, b) {
+		return _elm_lang$core$Random$Generator(
+			function (_p69) {
+				var _p70 = _p69;
+				var _p75 = _p70._0;
+				var base = 2147483561;
+				var f = F3(
+					function (n, acc, state) {
+						f:
+						while (true) {
+							var _p71 = n;
+							if (_p71 === 0) {
+								return {ctor: '_Tuple2', _0: acc, _1: state};
+							} else {
+								var _p72 = _p75.next(state);
+								var x = _p72._0;
+								var nextState = _p72._1;
+								var _v27 = n - 1,
+									_v28 = x + (acc * base),
+									_v29 = nextState;
+								n = _v27;
+								acc = _v28;
+								state = _v29;
+								continue f;
+							}
+						}
+					});
+				var _p73 = (_elm_lang$core$Native_Utils.cmp(a, b) < 0) ? {ctor: '_Tuple2', _0: a, _1: b} : {ctor: '_Tuple2', _0: b, _1: a};
+				var lo = _p73._0;
+				var hi = _p73._1;
+				var k = (hi - lo) + 1;
+				var n = A2(_elm_lang$core$Random$iLogBase, base, k);
+				var _p74 = A3(f, n, 1, _p75.state);
+				var v = _p74._0;
+				var nextState = _p74._1;
+				return {
+					ctor: '_Tuple2',
+					_0: lo + A2(_elm_lang$core$Basics_ops['%'], v, k),
+					_1: _elm_lang$core$Random$Seed(
+						_elm_lang$core$Native_Utils.update(
+							_p75,
+							{state: nextState}))
+				};
+			});
+	});
+var _elm_lang$core$Random$bool = A2(
+	_elm_lang$core$Random$map,
+	F2(
+		function (x, y) {
+			return _elm_lang$core$Native_Utils.eq(x, y);
+		})(1),
+	A2(_elm_lang$core$Random$int, 0, 1));
+var _elm_lang$core$Random$float = F2(
+	function (a, b) {
+		return _elm_lang$core$Random$Generator(
+			function (seed) {
+				var _p76 = A2(
+					_elm_lang$core$Random$step,
+					A2(_elm_lang$core$Random$int, _elm_lang$core$Random$minInt, _elm_lang$core$Random$maxInt),
+					seed);
+				var number = _p76._0;
+				var newSeed = _p76._1;
+				var negativeOneToOne = _elm_lang$core$Basics$toFloat(number) / _elm_lang$core$Basics$toFloat(_elm_lang$core$Random$maxInt - _elm_lang$core$Random$minInt);
+				var _p77 = (_elm_lang$core$Native_Utils.cmp(a, b) < 0) ? {ctor: '_Tuple2', _0: a, _1: b} : {ctor: '_Tuple2', _0: b, _1: a};
+				var lo = _p77._0;
+				var hi = _p77._1;
+				var scaled = ((lo + hi) / 2) + ((hi - lo) * negativeOneToOne);
+				return {ctor: '_Tuple2', _0: scaled, _1: newSeed};
+			});
+	});
+var _elm_lang$core$Random$initialSeed = function (n) {
+	return _elm_lang$core$Random$Seed(
+		{
+			state: _elm_lang$core$Random$initState(n),
+			next: _elm_lang$core$Random$next,
+			split: _elm_lang$core$Random$split,
+			range: _elm_lang$core$Random$range
+		});
+};
+var _elm_lang$core$Random$init = A2(
+	_elm_lang$core$Task$andThen,
+	function (t) {
+		return _elm_lang$core$Task$succeed(
+			_elm_lang$core$Random$initialSeed(
+				_elm_lang$core$Basics$round(t)));
+	},
+	_elm_lang$core$Time$now);
+var _elm_lang$core$Random$Generate = function (a) {
+	return {ctor: 'Generate', _0: a};
+};
+var _elm_lang$core$Random$generate = F2(
+	function (tagger, generator) {
+		return _elm_lang$core$Random$command(
+			_elm_lang$core$Random$Generate(
+				A2(_elm_lang$core$Random$map, tagger, generator)));
+	});
+var _elm_lang$core$Random$cmdMap = F2(
+	function (func, _p78) {
+		var _p79 = _p78;
+		return _elm_lang$core$Random$Generate(
+			A2(_elm_lang$core$Random$map, func, _p79._0));
+	});
+_elm_lang$core$Native_Platform.effectManagers['Random'] = {pkg: 'elm-lang/core', init: _elm_lang$core$Random$init, onEffects: _elm_lang$core$Random$onEffects, onSelfMsg: _elm_lang$core$Random$onSelfMsg, tag: 'cmd', cmdMap: _elm_lang$core$Random$cmdMap};
+
+var _connexity$ksql_web$Ksql_Update$scrollToBottom = A2(
+	_elm_lang$core$Task$attempt,
+	_elm_lang$core$Basics$always(_connexity$ksql_web$Ksql_Common$NoOp),
+	_elm_lang$dom$Dom_Scroll$toBottom('output'));
+var _connexity$ksql_web$Ksql_Update$maxQueryHistoryItems = 500;
+var _connexity$ksql_web$Ksql_Update$maxDisplayedRows = 5000;
+var _connexity$ksql_web$Ksql_Update$ErrorMessageResponse = function (a) {
+	return {ctor: 'ErrorMessageResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$TableAndNotificationMessageResponse = F2(
+	function (a, b) {
+		return {ctor: 'TableAndNotificationMessageResponse', _0: a, _1: b};
+	});
+var _connexity$ksql_web$Ksql_Update$NotificationMessageResponse = function (a) {
+	return {ctor: 'NotificationMessageResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$ExplainResponse = function (a) {
+	return {ctor: 'ExplainResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$DescribeExtendedResponse = function (a) {
+	return {ctor: 'DescribeExtendedResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$TableResponse = function (a) {
+	return {ctor: 'TableResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$StreamedTextResponse = function (a) {
+	return {ctor: 'StreamedTextResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$StreamedRowResponse = function (a) {
+	return {ctor: 'StreamedRowResponse', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$MetaRawContentFollows = function (a) {
+	return {ctor: 'MetaRawContentFollows', _0: a};
+};
+var _connexity$ksql_web$Ksql_Update$MetaConnected = {ctor: 'MetaConnected'};
+var _connexity$ksql_web$Ksql_Update$responseDecoder = function () {
+	var errorMessageRespDecoder = function () {
+		var errorMessageObjectDecoder = A2(
+			_elm_lang$core$Json_Decode$at,
+			{
+				ctor: '::',
+				_0: 'error',
+				_1: {
+					ctor: '::',
+					_0: 'errorMessage',
+					_1: {
+						ctor: '::',
+						_0: 'message',
+						_1: {ctor: '[]'}
+					}
+				}
+			},
+			_elm_lang$core$Json_Decode$string);
+		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Update$ErrorMessageResponse, errorMessageObjectDecoder);
+	}();
+	var notificationRespDecoder = function () {
+		var notificationObjectDecoder = A2(
+			_elm_lang$core$Json_Decode$at,
+			{
+				ctor: '::',
+				_0: 'errorMessage',
+				_1: {
+					ctor: '::',
+					_0: 'message',
+					_1: {ctor: '[]'}
+				}
+			},
+			_elm_lang$core$Json_Decode$string);
+		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Update$NotificationMessageResponse, notificationObjectDecoder);
+	}();
+	var rawContentDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Update$StreamedTextResponse, _elm_lang$core$Json_Decode$string);
+	var curStatusDecoder = function () {
+		var currentStatusObjectDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			F2(
+				function (status, message) {
+					return {
+						ctor: '_Tuple2',
+						_0: _elm_lang$core$Native_Utils.eq(status, 'SUCCESS'),
+						_1: message
+					};
+				}),
+			A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'currentStatus',
+					_1: {
+						ctor: '::',
+						_0: 'commandStatus',
+						_1: {
+							ctor: '::',
+							_0: 'status',
+							_1: {ctor: '[]'}
+						}
+					}
+				},
+				_elm_lang$core$Json_Decode$string),
+			A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'currentStatus',
+					_1: {
+						ctor: '::',
+						_0: 'commandStatus',
+						_1: {
+							ctor: '::',
+							_0: 'message',
+							_1: {ctor: '[]'}
+						}
+					}
+				},
+				_elm_lang$core$Json_Decode$string));
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p0) {
+				var _p1 = _p0;
+				var _p2 = _p1._1;
+				return _p1._0 ? _connexity$ksql_web$Ksql_Update$NotificationMessageResponse(_p2) : _connexity$ksql_web$Ksql_Update$ErrorMessageResponse(_p2);
+			},
+			currentStatusObjectDecoder);
+	}();
+	var columnDecoder = function () {
+		var jsonColumnDecoder = A2(
+			_elm_lang$core$Json_Decode$map,
+			_connexity$ksql_web$Ksql_Common$JsonColumn,
+			_elm_lang$core$Json_Decode$keyValuePairs(
+				_elm_lang$core$Json_Decode$lazy(
+					function (_p3) {
+						return columnDecoder;
+					})));
+		var arrayColumnDecoder = A2(
+			_elm_lang$core$Json_Decode$map,
+			_connexity$ksql_web$Ksql_Common$ArrayColumn,
+			_elm_lang$core$Json_Decode$list(
+				_elm_lang$core$Json_Decode$lazy(
+					function (_p4) {
+						return columnDecoder;
+					})));
+		var nullColumnDecoder = _elm_lang$core$Json_Decode$null(_connexity$ksql_web$Ksql_Common$NullColumn);
+		var stringColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Common$StringColumn, _elm_lang$core$Json_Decode$string);
+		var intColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Common$NumericColumn, _elm_lang$core$Json_Decode$float);
+		var boolColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Common$BoolColumn, _elm_lang$core$Json_Decode$bool);
+		return _elm_lang$core$Json_Decode$oneOf(
+			{
+				ctor: '::',
+				_0: boolColumnDecoder,
+				_1: {
+					ctor: '::',
+					_0: intColumnDecoder,
+					_1: {
+						ctor: '::',
+						_0: stringColumnDecoder,
+						_1: {
+							ctor: '::',
+							_0: nullColumnDecoder,
+							_1: {
+								ctor: '::',
+								_0: arrayColumnDecoder,
+								_1: {
+									ctor: '::',
+									_0: jsonColumnDecoder,
+									_1: {ctor: '[]'}
+								}
+							}
+						}
+					}
+				}
+			});
+	}();
+	var rowRespDecoder = function () {
+		var rowObjectDecoder = A2(
+			_elm_lang$core$Json_Decode$at,
+			{
+				ctor: '::',
+				_0: 'row',
+				_1: {
+					ctor: '::',
+					_0: 'columns',
+					_1: {ctor: '[]'}
+				}
+			},
+			_elm_lang$core$Json_Decode$list(columnDecoder));
+		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Update$StreamedRowResponse, rowObjectDecoder);
+	}();
+	var propertiesRespDecoder = function () {
+		var propertiesObjectDecoder = A2(
+			_elm_lang$core$Json_Decode$map,
+			function (kvPairs) {
+				return A2(
+					_elm_lang$core$List$map,
+					function (_p5) {
+						var _p6 = _p5;
+						return {
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Common$StringColumn(_p6._0),
+							_1: {
+								ctor: '::',
+								_0: _p6._1,
+								_1: {ctor: '[]'}
+							}
+						};
+					},
+					kvPairs);
+			},
+			A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'properties',
+					_1: {
+						ctor: '::',
+						_0: 'properties',
+						_1: {ctor: '[]'}
+					}
+				},
+				_elm_lang$core$Json_Decode$keyValuePairs(columnDecoder)));
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p7) {
+				return _connexity$ksql_web$Ksql_Update$TableResponse(
+					A2(
+						_connexity$ksql_web$Ksql_Common$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Common$StringColumn('Property'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Ksql_Common$StringColumn('Value'),
+								_1: {ctor: '[]'}
+							}
+						},
+						_p7));
+			},
+			propertiesObjectDecoder);
+	}();
+	var queriesRespDecoder = function () {
+		var queriesObjectDecoder = function () {
+			var entryDecoder = A4(
+				_elm_lang$core$Json_Decode$map3,
+				F3(
+					function (id, kafkaTopic, queryString) {
+						return {
+							ctor: '::',
+							_0: id,
+							_1: {
+								ctor: '::',
+								_0: kafkaTopic,
+								_1: {
+									ctor: '::',
+									_0: queryString,
+									_1: {ctor: '[]'}
+								}
+							}
+						};
+					}),
+				A2(
+					_elm_lang$core$Json_Decode$at,
+					{
+						ctor: '::',
+						_0: 'id',
+						_1: {
+							ctor: '::',
+							_0: 'id',
+							_1: {ctor: '[]'}
+						}
+					},
+					columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'queryString', columnDecoder));
+			return A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'queries',
+					_1: {
+						ctor: '::',
+						_0: 'queries',
+						_1: {ctor: '[]'}
+					}
+				},
+				_elm_lang$core$Json_Decode$list(entryDecoder));
+		}();
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p8) {
+				return A3(
+					_elm_lang$core$Basics$flip,
+					_connexity$ksql_web$Ksql_Update$TableAndNotificationMessageResponse,
+					'For detailed information on a Query run: EXPLAIN <Query ID>;',
+					A2(
+						_connexity$ksql_web$Ksql_Common$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Common$StringColumn('Query ID'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Ksql_Common$StringColumn('Kafka Topic'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Ksql_Common$StringColumn('Query String'),
+									_1: {ctor: '[]'}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p8)));
+			},
+			queriesObjectDecoder);
+	}();
+	var streamsRespDecoder = function () {
+		var streamsObjectDecoder = function () {
+			var entryDecoder = A4(
+				_elm_lang$core$Json_Decode$map3,
+				F3(
+					function (name, topic, format) {
+						return {
+							ctor: '::',
+							_0: name,
+							_1: {
+								ctor: '::',
+								_0: topic,
+								_1: {
+									ctor: '::',
+									_0: format,
+									_1: {ctor: '[]'}
+								}
+							}
+						};
+					}),
+				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'topic', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'format', columnDecoder));
+			return A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'streams',
+					_1: {
+						ctor: '::',
+						_0: 'streams',
+						_1: {ctor: '[]'}
+					}
+				},
+				_elm_lang$core$Json_Decode$list(entryDecoder));
+		}();
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p9) {
+				return _connexity$ksql_web$Ksql_Update$TableResponse(
+					A2(
+						_connexity$ksql_web$Ksql_Common$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Common$StringColumn('Stream Name'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Ksql_Common$StringColumn('Kafka Topic'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Ksql_Common$StringColumn('Format'),
+									_1: {ctor: '[]'}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p9)));
+			},
+			streamsObjectDecoder);
+	}();
+	var tablesRespDecoder = function () {
+		var tablesObjectDecoder = function () {
+			var entryDecoder = A5(
+				_elm_lang$core$Json_Decode$map4,
+				F4(
+					function (name, topic, format, windowed) {
+						return {
+							ctor: '::',
+							_0: name,
+							_1: {
+								ctor: '::',
+								_0: topic,
+								_1: {
+									ctor: '::',
+									_0: format,
+									_1: {
+										ctor: '::',
+										_0: windowed,
+										_1: {ctor: '[]'}
+									}
+								}
+							}
+						};
+					}),
+				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'topic', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'format', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'isWindowed', columnDecoder));
+			return A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'tables',
+					_1: {
+						ctor: '::',
+						_0: 'tables',
+						_1: {ctor: '[]'}
+					}
+				},
+				_elm_lang$core$Json_Decode$list(entryDecoder));
+		}();
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p10) {
+				return _connexity$ksql_web$Ksql_Update$TableResponse(
+					A2(
+						_connexity$ksql_web$Ksql_Common$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Common$StringColumn('Stream Name'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Ksql_Common$StringColumn('Kafka Topic'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Ksql_Common$StringColumn('Format'),
+									_1: {
+										ctor: '::',
+										_0: _connexity$ksql_web$Ksql_Common$StringColumn('Windowed'),
+										_1: {ctor: '[]'}
+									}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p10)));
+			},
+			tablesObjectDecoder);
+	}();
+	var topicsRespDecoder = function () {
+		var topicsObjectDecoder = function () {
+			var entryDecoder = A7(
+				_elm_lang$core$Json_Decode$map6,
+				F6(
+					function (name, registered, parts, partsReplica, consumers, consumerGroups) {
+						return {
+							ctor: '::',
+							_0: name,
+							_1: {
+								ctor: '::',
+								_0: registered,
+								_1: {
+									ctor: '::',
+									_0: parts,
+									_1: {
+										ctor: '::',
+										_0: partsReplica,
+										_1: {
+											ctor: '::',
+											_0: consumers,
+											_1: {
+												ctor: '::',
+												_0: consumerGroups,
+												_1: {ctor: '[]'}
+											}
+										}
+									}
+								}
+							}
+						};
+					}),
+				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'registered', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'partitionCount', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'replicaInfo', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'consumerCount', columnDecoder),
+				A2(_elm_lang$core$Json_Decode$field, 'consumerGroupCount', columnDecoder));
+			return A2(
+				_elm_lang$core$Json_Decode$at,
+				{
+					ctor: '::',
+					_0: 'kafka_topics',
+					_1: {
+						ctor: '::',
+						_0: 'topics',
+						_1: {ctor: '[]'}
+					}
+				},
+				_elm_lang$core$Json_Decode$list(entryDecoder));
+		}();
+		return A2(
+			_elm_lang$core$Json_Decode$map,
+			function (_p11) {
+				return _connexity$ksql_web$Ksql_Update$TableResponse(
+					A2(
+						_connexity$ksql_web$Ksql_Common$Table,
+						{
+							ctor: '::',
+							_0: _connexity$ksql_web$Ksql_Common$StringColumn('Kafka Topic'),
+							_1: {
+								ctor: '::',
+								_0: _connexity$ksql_web$Ksql_Common$StringColumn('Registered'),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Ksql_Common$StringColumn('Partitions'),
+									_1: {
+										ctor: '::',
+										_0: _connexity$ksql_web$Ksql_Common$StringColumn('Partition Replicas'),
+										_1: {
+											ctor: '::',
+											_0: _connexity$ksql_web$Ksql_Common$StringColumn('Consumers'),
+											_1: {
+												ctor: '::',
+												_0: _connexity$ksql_web$Ksql_Common$StringColumn('Consumer Groups'),
+												_1: {ctor: '[]'}
+											}
+										}
+									}
+								}
+							}
+						},
+						_elm_lang$core$List$reverse(_p11)));
+			},
+			topicsObjectDecoder);
+	}();
+	var descrRespDecoder = function () {
+		var descrObjectTopicDecoder = A4(
+			_elm_lang$core$Json_Decode$map3,
+			_connexity$ksql_web$Ksql_Common$Topic,
+			A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'partitions', _elm_lang$core$Json_Decode$int),
+			A2(_elm_lang$core$Json_Decode$field, 'replication', _elm_lang$core$Json_Decode$int));
+		var descrObjectStatsDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			_connexity$ksql_web$Ksql_Common$Statistics,
+			A2(_elm_lang$core$Json_Decode$field, 'statistics', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'errorStats', _elm_lang$core$Json_Decode$string));
+		var descrObjectExplainDecoder = A6(
+			_elm_lang$core$Json_Decode$map5,
+			_connexity$ksql_web$Ksql_Common$ExecutionPlan,
+			A2(_elm_lang$core$Json_Decode$field, 'statementText', _elm_lang$core$Json_Decode$string),
+			descrObjectStatsDecoder,
+			descrObjectTopicDecoder,
+			A2(_elm_lang$core$Json_Decode$field, 'executionPlan', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'topology', _elm_lang$core$Json_Decode$string));
+		var descrObjectTypeDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			_elm_lang$core$Basics$curry(_elm_lang$core$Basics$identity),
+			A2(_elm_lang$core$Json_Decode$field, 'type', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'extended', _elm_lang$core$Json_Decode$bool));
+		var entryDecoder = A3(
+			_elm_lang$core$Json_Decode$map2,
+			F2(
+				function (name, typename) {
+					return {
+						ctor: '::',
+						_0: name,
+						_1: {
+							ctor: '::',
+							_0: typename,
+							_1: {ctor: '[]'}
+						}
+					};
+				}),
+			A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
+			A2(_elm_lang$core$Json_Decode$field, 'type', columnDecoder));
+		var descrObjectBasicSchemaDecoder = A2(
+			_elm_lang$core$Json_Decode$field,
+			'schema',
+			_elm_lang$core$Json_Decode$list(entryDecoder));
+		var descrObjectExtendedSchemaDecoder = A9(
+			_elm_lang$core$Json_Decode$map8,
+			_connexity$ksql_web$Ksql_Common$ExtendedSchema,
+			A2(_elm_lang$core$Json_Decode$field, 'type', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'key', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'timestamp', _elm_lang$core$Json_Decode$string),
+			A2(_elm_lang$core$Json_Decode$field, 'serdes', _elm_lang$core$Json_Decode$string),
+			descrObjectTopicDecoder,
+			A2(
+				_elm_lang$core$Json_Decode$field,
+				'schema',
+				_elm_lang$core$Json_Decode$list(entryDecoder)),
+			A2(
+				_elm_lang$core$Json_Decode$field,
+				'writeQueries',
+				_elm_lang$core$Json_Decode$list(_elm_lang$core$Json_Decode$string)),
+			descrObjectStatsDecoder);
+		return A2(
+			_elm_lang$core$Json_Decode$field,
+			'description',
+			A2(
+				_elm_lang$core$Json_Decode$andThen,
+				function (_p12) {
+					var _p13 = _p12;
+					var _p14 = {ctor: '_Tuple2', _0: _p13._0, _1: _p13._1};
+					_v3_0:
+					do {
+						if (_p14._1 === false) {
+							if (_p14._0 === 'QUERY') {
+								break _v3_0;
+							} else {
+								return A2(
+									_elm_lang$core$Json_Decode$map,
+									function (_p15) {
+										return A3(
+											_elm_lang$core$Basics$flip,
+											_connexity$ksql_web$Ksql_Update$TableAndNotificationMessageResponse,
+											'For runtime statistics and query details run: DESCRIBE EXTENDED <Stream,Table>;',
+											A2(
+												_connexity$ksql_web$Ksql_Common$Table,
+												{
+													ctor: '::',
+													_0: _connexity$ksql_web$Ksql_Common$StringColumn('Field'),
+													_1: {
+														ctor: '::',
+														_0: _connexity$ksql_web$Ksql_Common$StringColumn('Type'),
+														_1: {ctor: '[]'}
+													}
+												},
+												_elm_lang$core$List$reverse(_p15)));
+									},
+									descrObjectBasicSchemaDecoder);
+							}
+						} else {
+							if (_p14._0 === 'QUERY') {
+								break _v3_0;
+							} else {
+								return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Update$DescribeExtendedResponse, descrObjectExtendedSchemaDecoder);
+							}
+						}
+					} while(false);
+					return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Ksql_Update$ExplainResponse, descrObjectExplainDecoder);
+				},
+				descrObjectTypeDecoder));
+	}();
+	var ksqlWebRespDecoder = A2(
+		_elm_lang$core$Json_Decode$field,
+		'ksqlWeb',
+		A2(
+			_elm_lang$core$Json_Decode$andThen,
+			function (msg) {
+				var _p16 = msg;
+				switch (_p16) {
+					case 'connected':
+						return _elm_lang$core$Json_Decode$succeed(_connexity$ksql_web$Ksql_Update$MetaConnected);
+					case 'rawContentFollows':
+						return A2(
+							_elm_lang$core$Json_Decode$map,
+							_connexity$ksql_web$Ksql_Update$MetaRawContentFollows,
+							A2(_elm_lang$core$Json_Decode$field, 'format', _elm_lang$core$Json_Decode$string));
+					default:
+						return _elm_lang$core$Json_Decode$fail(
+							A2(_elm_lang$core$Basics_ops['++'], 'Unhandled ksqlWeb message: ', _p16));
+				}
+			},
+			A2(_elm_lang$core$Json_Decode$field, 'msg', _elm_lang$core$Json_Decode$string)));
+	return _elm_lang$core$Json_Decode$oneOf(
+		{
+			ctor: '::',
+			_0: ksqlWebRespDecoder,
+			_1: {
+				ctor: '::',
+				_0: rowRespDecoder,
+				_1: {
+					ctor: '::',
+					_0: propertiesRespDecoder,
+					_1: {
+						ctor: '::',
+						_0: queriesRespDecoder,
+						_1: {
+							ctor: '::',
+							_0: streamsRespDecoder,
+							_1: {
+								ctor: '::',
+								_0: tablesRespDecoder,
+								_1: {
+									ctor: '::',
+									_0: topicsRespDecoder,
+									_1: {
+										ctor: '::',
+										_0: descrRespDecoder,
+										_1: {
+											ctor: '::',
+											_0: curStatusDecoder,
+											_1: {
+												ctor: '::',
+												_0: rawContentDecoder,
+												_1: {
+													ctor: '::',
+													_0: notificationRespDecoder,
+													_1: {
+														ctor: '::',
+														_0: errorMessageRespDecoder,
+														_1: {ctor: '[]'}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+}();
+var _connexity$ksql_web$Ksql_Update$update = F2(
+	function (msg, model) {
+		var _p17 = msg;
+		switch (_p17.ctor) {
+			case 'PerformInTimedState':
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{state: _p17._1}),
+					_1: _p17._0
+				};
+			case 'ChangeQuery':
+				var query = model.query;
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{
+							query: _elm_lang$core$Native_Utils.update(
+								query,
+								{
+									editBuffers: A3(_elm_lang$core$Dict$insert, query.currentHistoryIndex, _p17._0, query.editBuffers)
+								})
+						}),
+					_1: _elm_lang$core$Platform_Cmd$none
+				};
+			case 'RunQuery':
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{
+							result: _elm_lang$core$Maybe$Nothing,
+							notifications: {ctor: '[]'},
+							errorMessages: {ctor: '[]'}
+						}),
+					_1: function () {
+						var queryText = _elm_lang$core$String$trim(
+							_connexity$ksql_web$Ksql_Common$currentQueryText(model.query));
+						return _elm_lang$core$String$isEmpty(queryText) ? _elm_lang$core$Platform_Cmd$none : _elm_lang$core$Platform_Cmd$batch(
+							{
+								ctor: '::',
+								_0: A2(
+									_elm_lang$core$Task$perform,
+									function (_p18) {
+										return A2(
+											_connexity$ksql_web$Ksql_Common$PerformInTimedState,
+											A2(_connexity$ksql_web$Ksql_Common$sendQuery, model.flags, queryText),
+											_connexity$ksql_web$Ksql_Common$Running(
+												A2(_connexity$ksql_web$Ksql_Common$DeterminateProgress, 0, _p18)));
+									},
+									_elm_lang$core$Time$now),
+								_1: {
+									ctor: '::',
+									_0: _connexity$ksql_web$Ksql_Port$localStorageGetQueryHistoryCmd(
+										{ctor: '_Tuple0'}),
+									_1: {ctor: '[]'}
+								}
+							});
+					}()
+				};
+			case 'PauseQuery':
+				var updatedState = function () {
+					var _p19 = model.state;
+					if (_p19.ctor === 'Streaming') {
+						return A2(_connexity$ksql_web$Ksql_Common$Streaming, !_p19._0, _p19._1);
+					} else {
+						return _p19;
+					}
+				}();
+				var updatedCmd = function () {
+					var _p20 = updatedState;
+					if ((_p20.ctor === 'Streaming') && (_p20._0 === true)) {
+						return _connexity$ksql_web$Ksql_Update$scrollToBottom;
+					} else {
+						return _elm_lang$core$Platform_Cmd$none;
+					}
+				}();
+				var _p21 = model.result;
+				_v8_2:
+				do {
+					if (_p21.ctor === 'Just') {
+						switch (_p21._0.ctor) {
+							case 'StreamingTabularResult':
+								return {
+									ctor: '_Tuple2',
+									_0: _elm_lang$core$Native_Utils.update(
+										model,
+										{
+											state: updatedState,
+											result: _elm_lang$core$Maybe$Just(
+												_connexity$ksql_web$Ksql_Common$StreamingTabularResult(
+													_connexity$ksql_web$Stream$togglePause(_p21._0._0)))
+										}),
+									_1: updatedCmd
+								};
+							case 'StreamingTextualResult':
+								return {
+									ctor: '_Tuple2',
+									_0: _elm_lang$core$Native_Utils.update(
+										model,
+										{
+											state: updatedState,
+											result: _elm_lang$core$Maybe$Just(
+												_connexity$ksql_web$Ksql_Common$StreamingTextualResult(
+													_connexity$ksql_web$Stream$togglePause(_p21._0._0)))
+										}),
+									_1: updatedCmd
+								};
+							default:
+								break _v8_2;
+						}
+					} else {
+						break _v8_2;
+					}
+				} while(false);
+				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
+			case 'StopQuery':
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{state: _connexity$ksql_web$Ksql_Common$Idle}),
+					_1: A2(
+						_elm_lang$websocket$WebSocket$send,
+						_connexity$ksql_web$Ksql_Common$webSocketUrl(model.flags),
+						'{\"cmd\":\"stop\"}')
+				};
+			case 'UpdateQueryHistory':
+				var _p23 = _p17._0;
+				var queryText = _connexity$ksql_web$Ksql_Common$currentQueryText(model.query);
+				var updatedQueryHistory = function () {
+					var _p22 = _p23;
+					if (_p22.ctor === '[]') {
+						return {
+							ctor: '::',
+							_0: queryText,
+							_1: {ctor: '[]'}
+						};
+					} else {
+						return _elm_lang$core$Native_Utils.eq(_p22._0, queryText) ? _p23 : A2(
+							_elm_lang$core$List$take,
+							_connexity$ksql_web$Ksql_Update$maxQueryHistoryItems,
+							{ctor: '::', _0: queryText, _1: _p23});
+					}
+				}();
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{
+							query: A3(_connexity$ksql_web$Ksql_Common$Query, updatedQueryHistory, 0, _elm_lang$core$Dict$empty)
+						}),
+					_1: _connexity$ksql_web$Ksql_Port$localStorageSetQueryHistoryCmd(updatedQueryHistory)
+				};
+			case 'UsePrevQueryInHistory':
+				var existingQuery = model.query;
+				var updatedQuery = _elm_lang$core$Native_Utils.update(
+					existingQuery,
+					{
+						currentHistoryIndex: A2(
+							_elm_lang$core$Basics$min,
+							_elm_lang$core$List$length(existingQuery.queryHistory) - 1,
+							existingQuery.currentHistoryIndex + 1)
+					});
+				return _elm_lang$core$Native_Utils.eq(existingQuery, updatedQuery) ? {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none} : {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{query: updatedQuery}),
+					_1: function () {
+						var value = _connexity$ksql_web$Ksql_Common$currentQueryText(updatedQuery);
+						return _connexity$ksql_web$Ksql_Port$codeMirrorDocSetValueCursorCmd(
+							{
+								value: value,
+								cursor: {
+									line: _elm_lang$core$List$length(
+										_elm_lang$core$String$lines(value)),
+									ch: 0
+								}
+							});
+					}()
+				};
+			case 'UseNextQueryInHistory':
+				var existingQuery = model.query;
+				var updatedQuery = _elm_lang$core$Native_Utils.update(
+					existingQuery,
+					{
+						currentHistoryIndex: A2(_elm_lang$core$Basics$max, -1, existingQuery.currentHistoryIndex - 1)
+					});
+				return _elm_lang$core$Native_Utils.eq(existingQuery, updatedQuery) ? {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none} : {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{query: updatedQuery}),
+					_1: function () {
+						var value = _connexity$ksql_web$Ksql_Common$currentQueryText(updatedQuery);
+						return _connexity$ksql_web$Ksql_Port$codeMirrorDocSetValueCursorCmd(
+							{
+								value: value,
+								cursor: {line: 0, ch: 1}
+							});
+					}()
+				};
+			case 'WebSocketIncoming':
+				var _p34 = _p17._0;
+				var responsesResult = A2(
+					_elm_lang$core$Json_Decode$decodeString,
+					_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Ksql_Update$responseDecoder),
+					_p34);
+				return {
+					ctor: '_Tuple2',
+					_0: function () {
+						var _p24 = responsesResult;
+						if (_p24.ctor === 'Ok') {
+							return A3(
+								_elm_lang$core$List$foldr,
+								F2(
+									function (response, model) {
+										var _p25 = response;
+										switch (_p25.ctor) {
+											case 'MetaConnected':
+												var _p26 = model.state;
+												if (_p26.ctor === 'Initializing') {
+													return _elm_lang$core$Native_Utils.update(
+														model,
+														{state: _connexity$ksql_web$Ksql_Common$Idle});
+												} else {
+													return model;
+												}
+											case 'StreamedRowResponse':
+												var updatedState = function () {
+													var _p27 = model.state;
+													if (_p27.ctor === 'Running') {
+														return A2(
+															_connexity$ksql_web$Ksql_Common$Streaming,
+															true,
+															A2(
+																_connexity$ksql_web$Ksql_Common$IndeterminateProgress,
+																{
+																	ctor: '::',
+																	_0: 0,
+																	_1: {ctor: '[]'}
+																},
+																_p27._0.currentTime));
+													} else {
+														return _p27;
+													}
+												}();
+												var rows = function () {
+													var _p28 = model.result;
+													if ((_p28.ctor === 'Just') && (_p28._0.ctor === 'StreamingTabularResult')) {
+														return _p28._0._0;
+													} else {
+														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Ksql_Update$maxDisplayedRows);
+													}
+												}();
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: updatedState,
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$StreamingTabularResult(
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p25._0, rows)))
+													});
+											case 'TableResponse':
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: _connexity$ksql_web$Ksql_Common$Idle,
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$TabularResult(_p25._0))
+													});
+											case 'NotificationMessageResponse':
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: _connexity$ksql_web$Ksql_Common$Idle,
+														notifications: {ctor: '::', _0: _p25._0, _1: model.notifications}
+													});
+											case 'TableAndNotificationMessageResponse':
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: _connexity$ksql_web$Ksql_Common$Idle,
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$TabularResult(_p25._0)),
+														notifications: {ctor: '::', _0: _p25._1, _1: model.notifications}
+													});
+											case 'DescribeExtendedResponse':
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: _connexity$ksql_web$Ksql_Common$Idle,
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$DescribeExtendedResult(_p25._0))
+													});
+											case 'ExplainResponse':
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: _connexity$ksql_web$Ksql_Common$Idle,
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$ExplainResult(_p25._0))
+													});
+											case 'MetaRawContentFollows':
+												var lines = function () {
+													var _p29 = model.result;
+													if ((_p29.ctor === 'Just') && (_p29._0.ctor === 'StreamingTextualResult')) {
+														return _p29._0._0;
+													} else {
+														return A2(
+															_connexity$ksql_web$Stream_ops[':::'],
+															A2(_elm_lang$core$Basics_ops['++'], 'Format: ', _p25._0),
+															_connexity$ksql_web$Stream$empty(_connexity$ksql_web$Ksql_Update$maxDisplayedRows));
+													}
+												}();
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$StreamingTextualResult(lines))
+													});
+											case 'StreamedTextResponse':
+												var updatedState = function () {
+													var _p30 = model.state;
+													if (_p30.ctor === 'Running') {
+														return A2(
+															_connexity$ksql_web$Ksql_Common$Streaming,
+															true,
+															A2(
+																_connexity$ksql_web$Ksql_Common$IndeterminateProgress,
+																{
+																	ctor: '::',
+																	_0: 0,
+																	_1: {ctor: '[]'}
+																},
+																_p30._0.currentTime));
+													} else {
+														return _p30;
+													}
+												}();
+												var lines = function () {
+													var _p31 = model.result;
+													if ((_p31.ctor === 'Just') && (_p31._0.ctor === 'StreamingTextualResult')) {
+														return _p31._0._0;
+													} else {
+														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Ksql_Update$maxDisplayedRows);
+													}
+												}();
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{
+														state: updatedState,
+														result: _elm_lang$core$Maybe$Just(
+															_connexity$ksql_web$Ksql_Common$StreamingTextualResult(
+																A2(_connexity$ksql_web$Stream_ops[':::'], _p25._0, lines)))
+													});
+											default:
+												var newErrorMessages = function () {
+													var _p32 = _elm_lang$core$String$lines(_p25._0);
+													if (_p32.ctor === '::') {
+														return {ctor: '::', _0: _p32._0, _1: model.errorMessages};
+													} else {
+														return model.errorMessages;
+													}
+												}();
+												return _elm_lang$core$Native_Utils.update(
+													model,
+													{state: _connexity$ksql_web$Ksql_Common$Idle, errorMessages: newErrorMessages});
+										}
+									}),
+								model,
+								_p24._0);
+						} else {
+							return _elm_lang$core$Native_Utils.update(
+								model,
+								{
+									errorMessages: {
+										ctor: '::',
+										_0: A2(
+											_elm_lang$core$Basics_ops['++'],
+											'Error parsing JSON (',
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												_p24._0,
+												A2(_elm_lang$core$Basics_ops['++'], '):\n', _p34))),
+										_1: {ctor: '[]'}
+									}
+								});
+						}
+					}(),
+					_1: function () {
+						var _p33 = {ctor: '_Tuple2', _0: responsesResult, _1: model.state};
+						_v19_2:
+						do {
+							if ((_p33.ctor === '_Tuple2') && (_p33._1.ctor === 'Streaming')) {
+								if ((((_p33._0.ctor === 'Ok') && (_p33._0._0.ctor === '::')) && (_p33._0._0._0.ctor === 'MetaConnected')) && (_p33._0._0._1.ctor === '[]')) {
+									return A2(
+										_connexity$ksql_web$Ksql_Common$sendQuery,
+										model.flags,
+										_connexity$ksql_web$Ksql_Common$currentQueryText(model.query));
+								} else {
+									if (_p33._1._0 === true) {
+										return _connexity$ksql_web$Ksql_Update$scrollToBottom;
+									} else {
+										break _v19_2;
+									}
+								}
+							} else {
+								break _v19_2;
+							}
+						} while(false);
+						return _elm_lang$core$Platform_Cmd$none;
+					}()
+				};
+			case 'SendWebSocketKeepAlive':
+				return {
+					ctor: '_Tuple2',
+					_0: model,
+					_1: A2(
+						_elm_lang$websocket$WebSocket$send,
+						_connexity$ksql_web$Ksql_Common$webSocketUrl(model.flags),
+						'{}')
+				};
+			case 'ProgressTick':
+				var _p41 = _p17._0;
+				return {
+					ctor: '_Tuple2',
+					_0: function () {
+						var _p35 = model.state;
+						switch (_p35.ctor) {
+							case 'Initializing':
+								var _p36 = _p35._0;
+								var updatedProgress = _elm_lang$core$Native_Utils.update(
+									_p36,
+									{duration: (_p36.duration + _p41) - _p36.currentTime, currentTime: _p41});
+								return _elm_lang$core$Native_Utils.update(
+									model,
+									{
+										state: _connexity$ksql_web$Ksql_Common$Initializing(updatedProgress)
+									});
+							case 'Running':
+								var _p37 = _p35._0;
+								var updatedProgress = _elm_lang$core$Native_Utils.update(
+									_p37,
+									{duration: (_p37.duration + _p41) - _p37.currentTime, currentTime: _p41});
+								return _elm_lang$core$Native_Utils.update(
+									model,
+									{
+										state: _connexity$ksql_web$Ksql_Common$Running(updatedProgress)
+									});
+							case 'Streaming':
+								var _p39 = _p35._1;
+								var _p38 = _p35._0;
+								var updatedProgress = function () {
+									var duration = _p41 - _p39.currentTime;
+									var markerDurations = (!_p38) ? _p39.markerDurations : A2(
+										_elm_lang$core$List$map,
+										F2(
+											function (x, y) {
+												return x + y;
+											})(duration),
+										_p39.markerDurations);
+									return _elm_lang$core$Native_Utils.update(
+										_p39,
+										{markerDurations: markerDurations, currentTime: _p41});
+								}();
+								return _elm_lang$core$Native_Utils.update(
+									model,
+									{
+										state: A2(_connexity$ksql_web$Ksql_Common$Streaming, _p38, updatedProgress)
+									});
+							default:
+								return model;
+						}
+					}(),
+					_1: function () {
+						var _p40 = model.state;
+						if ((_p40.ctor === 'Streaming') && (_p40._0 === true)) {
+							return A2(
+								_elm_lang$core$Random$generate,
+								_connexity$ksql_web$Ksql_Common$ProgressAddRandomMarker,
+								A2(_elm_lang$core$Random$int, 0, 15));
+						} else {
+							return _elm_lang$core$Platform_Cmd$none;
+						}
+					}()
+				};
+			case 'ProgressAddRandomMarker':
+				var _p42 = model.state;
+				if ((_p42.ctor === 'Streaming') && (_p42._0 === true)) {
+					var _p44 = _p42._1.markerDurations;
+					var newMarkerDurations = function () {
+						var _p43 = _p17._0;
+						switch (_p43) {
+							case 1:
+								return {
+									ctor: '::',
+									_0: 0,
+									_1: {ctor: '[]'}
+								};
+							case 2:
+								return {
+									ctor: '::',
+									_0: 66,
+									_1: {ctor: '[]'}
+								};
+							case 3:
+								return {
+									ctor: '::',
+									_0: 0,
+									_1: {
+										ctor: '::',
+										_0: 66,
+										_1: {ctor: '[]'}
+									}
+								};
+							case 4:
+								return {
+									ctor: '::',
+									_0: 133,
+									_1: {ctor: '[]'}
+								};
+							case 5:
+								return {
+									ctor: '::',
+									_0: 0,
+									_1: {
+										ctor: '::',
+										_0: 133,
+										_1: {ctor: '[]'}
+									}
+								};
+							case 6:
+								return {
+									ctor: '::',
+									_0: 66,
+									_1: {
+										ctor: '::',
+										_0: 133,
+										_1: {ctor: '[]'}
+									}
+								};
+							case 7:
+								return {
+									ctor: '::',
+									_0: 0,
+									_1: {
+										ctor: '::',
+										_0: 66,
+										_1: {
+											ctor: '::',
+											_0: 133,
+											_1: {ctor: '[]'}
+										}
+									}
+								};
+							default:
+								return {ctor: '[]'};
+						}
+					}();
+					var updatedMarkerDurations = A2(
+						_elm_lang$core$List$all,
+						function (t) {
+							return _elm_lang$core$Native_Utils.cmp(t, _connexity$ksql_web$Ksql_Common$progressMarkerLife) > 0;
+						},
+						_p44) ? newMarkerDurations : A2(_elm_lang$core$Basics_ops['++'], newMarkerDurations, _p44);
+					return {
+						ctor: '_Tuple2',
+						_0: _elm_lang$core$Native_Utils.update(
+							model,
+							{
+								state: A2(
+									_connexity$ksql_web$Ksql_Common$Streaming,
+									true,
+									A2(_connexity$ksql_web$Ksql_Common$IndeterminateProgress, updatedMarkerDurations, _p42._1.currentTime))
+							}),
+						_1: _elm_lang$core$Platform_Cmd$none
+					};
+				} else {
+					return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
+				}
+			default:
+				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
+		}
+	});
 
 var _elm_lang$virtual_dom$VirtualDom_Debug$wrap;
 var _elm_lang$virtual_dom$VirtualDom_Debug$wrapWithFlags;
@@ -8666,1749 +12066,7 @@ var _elm_lang$html$Html_Events$Options = F2(
 		return {stopPropagation: a, preventDefault: b};
 	});
 
-var _elm_lang$http$Native_Http = function() {
-
-
-// ENCODING AND DECODING
-
-function encodeUri(string)
-{
-	return encodeURIComponent(string);
-}
-
-function decodeUri(string)
-{
-	try
-	{
-		return _elm_lang$core$Maybe$Just(decodeURIComponent(string));
-	}
-	catch(e)
-	{
-		return _elm_lang$core$Maybe$Nothing;
-	}
-}
-
-
-// SEND REQUEST
-
-function toTask(request, maybeProgress)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		var xhr = new XMLHttpRequest();
-
-		configureProgress(xhr, maybeProgress);
-
-		xhr.addEventListener('error', function() {
-			callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NetworkError' }));
-		});
-		xhr.addEventListener('timeout', function() {
-			callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'Timeout' }));
-		});
-		xhr.addEventListener('load', function() {
-			callback(handleResponse(xhr, request.expect.responseToResult));
-		});
-
-		try
-		{
-			xhr.open(request.method, request.url, true);
-		}
-		catch (e)
-		{
-			return callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'BadUrl', _0: request.url }));
-		}
-
-		configureRequest(xhr, request);
-		send(xhr, request.body);
-
-		return function() { xhr.abort(); };
-	});
-}
-
-function configureProgress(xhr, maybeProgress)
-{
-	if (maybeProgress.ctor === 'Nothing')
-	{
-		return;
-	}
-
-	xhr.addEventListener('progress', function(event) {
-		if (!event.lengthComputable)
-		{
-			return;
-		}
-		_elm_lang$core$Native_Scheduler.rawSpawn(maybeProgress._0({
-			bytes: event.loaded,
-			bytesExpected: event.total
-		}));
-	});
-}
-
-function configureRequest(xhr, request)
-{
-	function setHeader(pair)
-	{
-		xhr.setRequestHeader(pair._0, pair._1);
-	}
-
-	A2(_elm_lang$core$List$map, setHeader, request.headers);
-	xhr.responseType = request.expect.responseType;
-	xhr.withCredentials = request.withCredentials;
-
-	if (request.timeout.ctor === 'Just')
-	{
-		xhr.timeout = request.timeout._0;
-	}
-}
-
-function send(xhr, body)
-{
-	switch (body.ctor)
-	{
-		case 'EmptyBody':
-			xhr.send();
-			return;
-
-		case 'StringBody':
-			xhr.setRequestHeader('Content-Type', body._0);
-			xhr.send(body._1);
-			return;
-
-		case 'FormDataBody':
-			xhr.send(body._0);
-			return;
-	}
-}
-
-
-// RESPONSES
-
-function handleResponse(xhr, responseToResult)
-{
-	var response = toResponse(xhr);
-
-	if (xhr.status < 200 || 300 <= xhr.status)
-	{
-		response.body = xhr.responseText;
-		return _elm_lang$core$Native_Scheduler.fail({
-			ctor: 'BadStatus',
-			_0: response
-		});
-	}
-
-	var result = responseToResult(response);
-
-	if (result.ctor === 'Ok')
-	{
-		return _elm_lang$core$Native_Scheduler.succeed(result._0);
-	}
-	else
-	{
-		response.body = xhr.responseText;
-		return _elm_lang$core$Native_Scheduler.fail({
-			ctor: 'BadPayload',
-			_0: result._0,
-			_1: response
-		});
-	}
-}
-
-function toResponse(xhr)
-{
-	return {
-		status: { code: xhr.status, message: xhr.statusText },
-		headers: parseHeaders(xhr.getAllResponseHeaders()),
-		url: xhr.responseURL,
-		body: xhr.response
-	};
-}
-
-function parseHeaders(rawHeaders)
-{
-	var headers = _elm_lang$core$Dict$empty;
-
-	if (!rawHeaders)
-	{
-		return headers;
-	}
-
-	var headerPairs = rawHeaders.split('\u000d\u000a');
-	for (var i = headerPairs.length; i--; )
-	{
-		var headerPair = headerPairs[i];
-		var index = headerPair.indexOf('\u003a\u0020');
-		if (index > 0)
-		{
-			var key = headerPair.substring(0, index);
-			var value = headerPair.substring(index + 2);
-
-			headers = A3(_elm_lang$core$Dict$update, key, function(oldValue) {
-				if (oldValue.ctor === 'Just')
-				{
-					return _elm_lang$core$Maybe$Just(value + ', ' + oldValue._0);
-				}
-				return _elm_lang$core$Maybe$Just(value);
-			}, headers);
-		}
-	}
-
-	return headers;
-}
-
-
-// EXPECTORS
-
-function expectStringResponse(responseToResult)
-{
-	return {
-		responseType: 'text',
-		responseToResult: responseToResult
-	};
-}
-
-function mapExpect(func, expect)
-{
-	return {
-		responseType: expect.responseType,
-		responseToResult: function(response) {
-			var convertedResponse = expect.responseToResult(response);
-			return A2(_elm_lang$core$Result$map, func, convertedResponse);
-		}
-	};
-}
-
-
-// BODY
-
-function multipart(parts)
-{
-	var formData = new FormData();
-
-	while (parts.ctor !== '[]')
-	{
-		var part = parts._0;
-		formData.append(part._0, part._1);
-		parts = parts._1;
-	}
-
-	return { ctor: 'FormDataBody', _0: formData };
-}
-
-return {
-	toTask: F2(toTask),
-	expectStringResponse: expectStringResponse,
-	mapExpect: F2(mapExpect),
-	multipart: multipart,
-	encodeUri: encodeUri,
-	decodeUri: decodeUri
-};
-
-}();
-
-//import Native.Scheduler //
-
-var _elm_lang$core$Native_Time = function() {
-
-var now = _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-{
-	callback(_elm_lang$core$Native_Scheduler.succeed(Date.now()));
-});
-
-function setInterval_(interval, task)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		var id = setInterval(function() {
-			_elm_lang$core$Native_Scheduler.rawSpawn(task);
-		}, interval);
-
-		return function() { clearInterval(id); };
-	});
-}
-
-return {
-	now: now,
-	setInterval_: F2(setInterval_)
-};
-
-}();
-var _elm_lang$core$Time$setInterval = _elm_lang$core$Native_Time.setInterval_;
-var _elm_lang$core$Time$spawnHelp = F3(
-	function (router, intervals, processes) {
-		var _p0 = intervals;
-		if (_p0.ctor === '[]') {
-			return _elm_lang$core$Task$succeed(processes);
-		} else {
-			var _p1 = _p0._0;
-			var spawnRest = function (id) {
-				return A3(
-					_elm_lang$core$Time$spawnHelp,
-					router,
-					_p0._1,
-					A3(_elm_lang$core$Dict$insert, _p1, id, processes));
-			};
-			var spawnTimer = _elm_lang$core$Native_Scheduler.spawn(
-				A2(
-					_elm_lang$core$Time$setInterval,
-					_p1,
-					A2(_elm_lang$core$Platform$sendToSelf, router, _p1)));
-			return A2(_elm_lang$core$Task$andThen, spawnRest, spawnTimer);
-		}
-	});
-var _elm_lang$core$Time$addMySub = F2(
-	function (_p2, state) {
-		var _p3 = _p2;
-		var _p6 = _p3._1;
-		var _p5 = _p3._0;
-		var _p4 = A2(_elm_lang$core$Dict$get, _p5, state);
-		if (_p4.ctor === 'Nothing') {
-			return A3(
-				_elm_lang$core$Dict$insert,
-				_p5,
-				{
-					ctor: '::',
-					_0: _p6,
-					_1: {ctor: '[]'}
-				},
-				state);
-		} else {
-			return A3(
-				_elm_lang$core$Dict$insert,
-				_p5,
-				{ctor: '::', _0: _p6, _1: _p4._0},
-				state);
-		}
-	});
-var _elm_lang$core$Time$inMilliseconds = function (t) {
-	return t;
-};
-var _elm_lang$core$Time$millisecond = 1;
-var _elm_lang$core$Time$second = 1000 * _elm_lang$core$Time$millisecond;
-var _elm_lang$core$Time$minute = 60 * _elm_lang$core$Time$second;
-var _elm_lang$core$Time$hour = 60 * _elm_lang$core$Time$minute;
-var _elm_lang$core$Time$inHours = function (t) {
-	return t / _elm_lang$core$Time$hour;
-};
-var _elm_lang$core$Time$inMinutes = function (t) {
-	return t / _elm_lang$core$Time$minute;
-};
-var _elm_lang$core$Time$inSeconds = function (t) {
-	return t / _elm_lang$core$Time$second;
-};
-var _elm_lang$core$Time$now = _elm_lang$core$Native_Time.now;
-var _elm_lang$core$Time$onSelfMsg = F3(
-	function (router, interval, state) {
-		var _p7 = A2(_elm_lang$core$Dict$get, interval, state.taggers);
-		if (_p7.ctor === 'Nothing') {
-			return _elm_lang$core$Task$succeed(state);
-		} else {
-			var tellTaggers = function (time) {
-				return _elm_lang$core$Task$sequence(
-					A2(
-						_elm_lang$core$List$map,
-						function (tagger) {
-							return A2(
-								_elm_lang$core$Platform$sendToApp,
-								router,
-								tagger(time));
-						},
-						_p7._0));
-			};
-			return A2(
-				_elm_lang$core$Task$andThen,
-				function (_p8) {
-					return _elm_lang$core$Task$succeed(state);
-				},
-				A2(_elm_lang$core$Task$andThen, tellTaggers, _elm_lang$core$Time$now));
-		}
-	});
-var _elm_lang$core$Time$subscription = _elm_lang$core$Native_Platform.leaf('Time');
-var _elm_lang$core$Time$State = F2(
-	function (a, b) {
-		return {taggers: a, processes: b};
-	});
-var _elm_lang$core$Time$init = _elm_lang$core$Task$succeed(
-	A2(_elm_lang$core$Time$State, _elm_lang$core$Dict$empty, _elm_lang$core$Dict$empty));
-var _elm_lang$core$Time$onEffects = F3(
-	function (router, subs, _p9) {
-		var _p10 = _p9;
-		var rightStep = F3(
-			function (_p12, id, _p11) {
-				var _p13 = _p11;
-				return {
-					ctor: '_Tuple3',
-					_0: _p13._0,
-					_1: _p13._1,
-					_2: A2(
-						_elm_lang$core$Task$andThen,
-						function (_p14) {
-							return _p13._2;
-						},
-						_elm_lang$core$Native_Scheduler.kill(id))
-				};
-			});
-		var bothStep = F4(
-			function (interval, taggers, id, _p15) {
-				var _p16 = _p15;
-				return {
-					ctor: '_Tuple3',
-					_0: _p16._0,
-					_1: A3(_elm_lang$core$Dict$insert, interval, id, _p16._1),
-					_2: _p16._2
-				};
-			});
-		var leftStep = F3(
-			function (interval, taggers, _p17) {
-				var _p18 = _p17;
-				return {
-					ctor: '_Tuple3',
-					_0: {ctor: '::', _0: interval, _1: _p18._0},
-					_1: _p18._1,
-					_2: _p18._2
-				};
-			});
-		var newTaggers = A3(_elm_lang$core$List$foldl, _elm_lang$core$Time$addMySub, _elm_lang$core$Dict$empty, subs);
-		var _p19 = A6(
-			_elm_lang$core$Dict$merge,
-			leftStep,
-			bothStep,
-			rightStep,
-			newTaggers,
-			_p10.processes,
-			{
-				ctor: '_Tuple3',
-				_0: {ctor: '[]'},
-				_1: _elm_lang$core$Dict$empty,
-				_2: _elm_lang$core$Task$succeed(
-					{ctor: '_Tuple0'})
-			});
-		var spawnList = _p19._0;
-		var existingDict = _p19._1;
-		var killTask = _p19._2;
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (newProcesses) {
-				return _elm_lang$core$Task$succeed(
-					A2(_elm_lang$core$Time$State, newTaggers, newProcesses));
-			},
-			A2(
-				_elm_lang$core$Task$andThen,
-				function (_p20) {
-					return A3(_elm_lang$core$Time$spawnHelp, router, spawnList, existingDict);
-				},
-				killTask));
-	});
-var _elm_lang$core$Time$Every = F2(
-	function (a, b) {
-		return {ctor: 'Every', _0: a, _1: b};
-	});
-var _elm_lang$core$Time$every = F2(
-	function (interval, tagger) {
-		return _elm_lang$core$Time$subscription(
-			A2(_elm_lang$core$Time$Every, interval, tagger));
-	});
-var _elm_lang$core$Time$subMap = F2(
-	function (f, _p21) {
-		var _p22 = _p21;
-		return A2(
-			_elm_lang$core$Time$Every,
-			_p22._0,
-			function (_p23) {
-				return f(
-					_p22._1(_p23));
-			});
-	});
-_elm_lang$core$Native_Platform.effectManagers['Time'] = {pkg: 'elm-lang/core', init: _elm_lang$core$Time$init, onEffects: _elm_lang$core$Time$onEffects, onSelfMsg: _elm_lang$core$Time$onSelfMsg, tag: 'sub', subMap: _elm_lang$core$Time$subMap};
-
-var _elm_lang$http$Http_Internal$map = F2(
-	function (func, request) {
-		return _elm_lang$core$Native_Utils.update(
-			request,
-			{
-				expect: A2(_elm_lang$http$Native_Http.mapExpect, func, request.expect)
-			});
-	});
-var _elm_lang$http$Http_Internal$RawRequest = F7(
-	function (a, b, c, d, e, f, g) {
-		return {method: a, headers: b, url: c, body: d, expect: e, timeout: f, withCredentials: g};
-	});
-var _elm_lang$http$Http_Internal$Request = function (a) {
-	return {ctor: 'Request', _0: a};
-};
-var _elm_lang$http$Http_Internal$Expect = {ctor: 'Expect'};
-var _elm_lang$http$Http_Internal$FormDataBody = {ctor: 'FormDataBody'};
-var _elm_lang$http$Http_Internal$StringBody = F2(
-	function (a, b) {
-		return {ctor: 'StringBody', _0: a, _1: b};
-	});
-var _elm_lang$http$Http_Internal$EmptyBody = {ctor: 'EmptyBody'};
-var _elm_lang$http$Http_Internal$Header = F2(
-	function (a, b) {
-		return {ctor: 'Header', _0: a, _1: b};
-	});
-
-var _elm_lang$http$Http$decodeUri = _elm_lang$http$Native_Http.decodeUri;
-var _elm_lang$http$Http$encodeUri = _elm_lang$http$Native_Http.encodeUri;
-var _elm_lang$http$Http$expectStringResponse = _elm_lang$http$Native_Http.expectStringResponse;
-var _elm_lang$http$Http$expectJson = function (decoder) {
-	return _elm_lang$http$Http$expectStringResponse(
-		function (response) {
-			return A2(_elm_lang$core$Json_Decode$decodeString, decoder, response.body);
-		});
-};
-var _elm_lang$http$Http$expectString = _elm_lang$http$Http$expectStringResponse(
-	function (response) {
-		return _elm_lang$core$Result$Ok(response.body);
-	});
-var _elm_lang$http$Http$multipartBody = _elm_lang$http$Native_Http.multipart;
-var _elm_lang$http$Http$stringBody = _elm_lang$http$Http_Internal$StringBody;
-var _elm_lang$http$Http$jsonBody = function (value) {
-	return A2(
-		_elm_lang$http$Http_Internal$StringBody,
-		'application/json',
-		A2(_elm_lang$core$Json_Encode$encode, 0, value));
-};
-var _elm_lang$http$Http$emptyBody = _elm_lang$http$Http_Internal$EmptyBody;
-var _elm_lang$http$Http$header = _elm_lang$http$Http_Internal$Header;
-var _elm_lang$http$Http$request = _elm_lang$http$Http_Internal$Request;
-var _elm_lang$http$Http$post = F3(
-	function (url, body, decoder) {
-		return _elm_lang$http$Http$request(
-			{
-				method: 'POST',
-				headers: {ctor: '[]'},
-				url: url,
-				body: body,
-				expect: _elm_lang$http$Http$expectJson(decoder),
-				timeout: _elm_lang$core$Maybe$Nothing,
-				withCredentials: false
-			});
-	});
-var _elm_lang$http$Http$get = F2(
-	function (url, decoder) {
-		return _elm_lang$http$Http$request(
-			{
-				method: 'GET',
-				headers: {ctor: '[]'},
-				url: url,
-				body: _elm_lang$http$Http$emptyBody,
-				expect: _elm_lang$http$Http$expectJson(decoder),
-				timeout: _elm_lang$core$Maybe$Nothing,
-				withCredentials: false
-			});
-	});
-var _elm_lang$http$Http$getString = function (url) {
-	return _elm_lang$http$Http$request(
-		{
-			method: 'GET',
-			headers: {ctor: '[]'},
-			url: url,
-			body: _elm_lang$http$Http$emptyBody,
-			expect: _elm_lang$http$Http$expectString,
-			timeout: _elm_lang$core$Maybe$Nothing,
-			withCredentials: false
-		});
-};
-var _elm_lang$http$Http$toTask = function (_p0) {
-	var _p1 = _p0;
-	return A2(_elm_lang$http$Native_Http.toTask, _p1._0, _elm_lang$core$Maybe$Nothing);
-};
-var _elm_lang$http$Http$send = F2(
-	function (resultToMessage, request) {
-		return A2(
-			_elm_lang$core$Task$attempt,
-			resultToMessage,
-			_elm_lang$http$Http$toTask(request));
-	});
-var _elm_lang$http$Http$Response = F4(
-	function (a, b, c, d) {
-		return {url: a, status: b, headers: c, body: d};
-	});
-var _elm_lang$http$Http$BadPayload = F2(
-	function (a, b) {
-		return {ctor: 'BadPayload', _0: a, _1: b};
-	});
-var _elm_lang$http$Http$BadStatus = function (a) {
-	return {ctor: 'BadStatus', _0: a};
-};
-var _elm_lang$http$Http$NetworkError = {ctor: 'NetworkError'};
-var _elm_lang$http$Http$Timeout = {ctor: 'Timeout'};
-var _elm_lang$http$Http$BadUrl = function (a) {
-	return {ctor: 'BadUrl', _0: a};
-};
-var _elm_lang$http$Http$StringPart = F2(
-	function (a, b) {
-		return {ctor: 'StringPart', _0: a, _1: b};
-	});
-var _elm_lang$http$Http$stringPart = _elm_lang$http$Http$StringPart;
-
-var _elm_lang$dom$Dom_LowLevel$onWindow = _elm_lang$dom$Native_Dom.onWindow;
-var _elm_lang$dom$Dom_LowLevel$onDocument = _elm_lang$dom$Native_Dom.onDocument;
-
-var _elm_lang$core$Process$kill = _elm_lang$core$Native_Scheduler.kill;
-var _elm_lang$core$Process$sleep = _elm_lang$core$Native_Scheduler.sleep;
-var _elm_lang$core$Process$spawn = _elm_lang$core$Native_Scheduler.spawn;
-
-var _elm_lang$keyboard$Keyboard$onSelfMsg = F3(
-	function (router, _p0, state) {
-		var _p1 = _p0;
-		var _p2 = A2(_elm_lang$core$Dict$get, _p1.category, state);
-		if (_p2.ctor === 'Nothing') {
-			return _elm_lang$core$Task$succeed(state);
-		} else {
-			var send = function (tagger) {
-				return A2(
-					_elm_lang$core$Platform$sendToApp,
-					router,
-					tagger(_p1.keyCode));
-			};
-			return A2(
-				_elm_lang$core$Task$andThen,
-				function (_p3) {
-					return _elm_lang$core$Task$succeed(state);
-				},
-				_elm_lang$core$Task$sequence(
-					A2(_elm_lang$core$List$map, send, _p2._0.taggers)));
-		}
-	});
-var _elm_lang$keyboard$Keyboard_ops = _elm_lang$keyboard$Keyboard_ops || {};
-_elm_lang$keyboard$Keyboard_ops['&>'] = F2(
-	function (task1, task2) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (_p4) {
-				return task2;
-			},
-			task1);
-	});
-var _elm_lang$keyboard$Keyboard$init = _elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty);
-var _elm_lang$keyboard$Keyboard$categorizeHelpHelp = F2(
-	function (value, maybeValues) {
-		var _p5 = maybeValues;
-		if (_p5.ctor === 'Nothing') {
-			return _elm_lang$core$Maybe$Just(
-				{
-					ctor: '::',
-					_0: value,
-					_1: {ctor: '[]'}
-				});
-		} else {
-			return _elm_lang$core$Maybe$Just(
-				{ctor: '::', _0: value, _1: _p5._0});
-		}
-	});
-var _elm_lang$keyboard$Keyboard$categorizeHelp = F2(
-	function (subs, subDict) {
-		categorizeHelp:
-		while (true) {
-			var _p6 = subs;
-			if (_p6.ctor === '[]') {
-				return subDict;
-			} else {
-				var _v4 = _p6._1,
-					_v5 = A3(
-					_elm_lang$core$Dict$update,
-					_p6._0._0,
-					_elm_lang$keyboard$Keyboard$categorizeHelpHelp(_p6._0._1),
-					subDict);
-				subs = _v4;
-				subDict = _v5;
-				continue categorizeHelp;
-			}
-		}
-	});
-var _elm_lang$keyboard$Keyboard$categorize = function (subs) {
-	return A2(_elm_lang$keyboard$Keyboard$categorizeHelp, subs, _elm_lang$core$Dict$empty);
-};
-var _elm_lang$keyboard$Keyboard$keyCode = A2(_elm_lang$core$Json_Decode$field, 'keyCode', _elm_lang$core$Json_Decode$int);
-var _elm_lang$keyboard$Keyboard$subscription = _elm_lang$core$Native_Platform.leaf('Keyboard');
-var _elm_lang$keyboard$Keyboard$Watcher = F2(
-	function (a, b) {
-		return {taggers: a, pid: b};
-	});
-var _elm_lang$keyboard$Keyboard$Msg = F2(
-	function (a, b) {
-		return {category: a, keyCode: b};
-	});
-var _elm_lang$keyboard$Keyboard$onEffects = F3(
-	function (router, newSubs, oldState) {
-		var rightStep = F3(
-			function (category, taggers, task) {
-				return A2(
-					_elm_lang$core$Task$andThen,
-					function (state) {
-						return A2(
-							_elm_lang$core$Task$andThen,
-							function (pid) {
-								return _elm_lang$core$Task$succeed(
-									A3(
-										_elm_lang$core$Dict$insert,
-										category,
-										A2(_elm_lang$keyboard$Keyboard$Watcher, taggers, pid),
-										state));
-							},
-							_elm_lang$core$Process$spawn(
-								A3(
-									_elm_lang$dom$Dom_LowLevel$onDocument,
-									category,
-									_elm_lang$keyboard$Keyboard$keyCode,
-									function (_p7) {
-										return A2(
-											_elm_lang$core$Platform$sendToSelf,
-											router,
-											A2(_elm_lang$keyboard$Keyboard$Msg, category, _p7));
-									})));
-					},
-					task);
-			});
-		var bothStep = F4(
-			function (category, _p8, taggers, task) {
-				var _p9 = _p8;
-				return A2(
-					_elm_lang$core$Task$map,
-					A2(
-						_elm_lang$core$Dict$insert,
-						category,
-						A2(_elm_lang$keyboard$Keyboard$Watcher, taggers, _p9.pid)),
-					task);
-			});
-		var leftStep = F3(
-			function (category, _p10, task) {
-				var _p11 = _p10;
-				return A2(
-					_elm_lang$keyboard$Keyboard_ops['&>'],
-					_elm_lang$core$Process$kill(_p11.pid),
-					task);
-			});
-		return A6(
-			_elm_lang$core$Dict$merge,
-			leftStep,
-			bothStep,
-			rightStep,
-			oldState,
-			_elm_lang$keyboard$Keyboard$categorize(newSubs),
-			_elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty));
-	});
-var _elm_lang$keyboard$Keyboard$MySub = F2(
-	function (a, b) {
-		return {ctor: 'MySub', _0: a, _1: b};
-	});
-var _elm_lang$keyboard$Keyboard$presses = function (tagger) {
-	return _elm_lang$keyboard$Keyboard$subscription(
-		A2(_elm_lang$keyboard$Keyboard$MySub, 'keypress', tagger));
-};
-var _elm_lang$keyboard$Keyboard$downs = function (tagger) {
-	return _elm_lang$keyboard$Keyboard$subscription(
-		A2(_elm_lang$keyboard$Keyboard$MySub, 'keydown', tagger));
-};
-var _elm_lang$keyboard$Keyboard$ups = function (tagger) {
-	return _elm_lang$keyboard$Keyboard$subscription(
-		A2(_elm_lang$keyboard$Keyboard$MySub, 'keyup', tagger));
-};
-var _elm_lang$keyboard$Keyboard$subMap = F2(
-	function (func, _p12) {
-		var _p13 = _p12;
-		return A2(
-			_elm_lang$keyboard$Keyboard$MySub,
-			_p13._0,
-			function (_p14) {
-				return func(
-					_p13._1(_p14));
-			});
-	});
-_elm_lang$core$Native_Platform.effectManagers['Keyboard'] = {pkg: 'elm-lang/keyboard', init: _elm_lang$keyboard$Keyboard$init, onEffects: _elm_lang$keyboard$Keyboard$onEffects, onSelfMsg: _elm_lang$keyboard$Keyboard$onSelfMsg, tag: 'sub', subMap: _elm_lang$keyboard$Keyboard$subMap};
-
-var _elm_lang$core$Random$onSelfMsg = F3(
-	function (_p1, _p0, seed) {
-		return _elm_lang$core$Task$succeed(seed);
-	});
-var _elm_lang$core$Random$magicNum8 = 2147483562;
-var _elm_lang$core$Random$range = function (_p2) {
-	return {ctor: '_Tuple2', _0: 0, _1: _elm_lang$core$Random$magicNum8};
-};
-var _elm_lang$core$Random$magicNum7 = 2147483399;
-var _elm_lang$core$Random$magicNum6 = 2147483563;
-var _elm_lang$core$Random$magicNum5 = 3791;
-var _elm_lang$core$Random$magicNum4 = 40692;
-var _elm_lang$core$Random$magicNum3 = 52774;
-var _elm_lang$core$Random$magicNum2 = 12211;
-var _elm_lang$core$Random$magicNum1 = 53668;
-var _elm_lang$core$Random$magicNum0 = 40014;
-var _elm_lang$core$Random$step = F2(
-	function (_p3, seed) {
-		var _p4 = _p3;
-		return _p4._0(seed);
-	});
-var _elm_lang$core$Random$onEffects = F3(
-	function (router, commands, seed) {
-		var _p5 = commands;
-		if (_p5.ctor === '[]') {
-			return _elm_lang$core$Task$succeed(seed);
-		} else {
-			var _p6 = A2(_elm_lang$core$Random$step, _p5._0._0, seed);
-			var value = _p6._0;
-			var newSeed = _p6._1;
-			return A2(
-				_elm_lang$core$Task$andThen,
-				function (_p7) {
-					return A3(_elm_lang$core$Random$onEffects, router, _p5._1, newSeed);
-				},
-				A2(_elm_lang$core$Platform$sendToApp, router, value));
-		}
-	});
-var _elm_lang$core$Random$listHelp = F4(
-	function (list, n, generate, seed) {
-		listHelp:
-		while (true) {
-			if (_elm_lang$core$Native_Utils.cmp(n, 1) < 0) {
-				return {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$List$reverse(list),
-					_1: seed
-				};
-			} else {
-				var _p8 = generate(seed);
-				var value = _p8._0;
-				var newSeed = _p8._1;
-				var _v2 = {ctor: '::', _0: value, _1: list},
-					_v3 = n - 1,
-					_v4 = generate,
-					_v5 = newSeed;
-				list = _v2;
-				n = _v3;
-				generate = _v4;
-				seed = _v5;
-				continue listHelp;
-			}
-		}
-	});
-var _elm_lang$core$Random$minInt = -2147483648;
-var _elm_lang$core$Random$maxInt = 2147483647;
-var _elm_lang$core$Random$iLogBase = F2(
-	function (b, i) {
-		return (_elm_lang$core$Native_Utils.cmp(i, b) < 0) ? 1 : (1 + A2(_elm_lang$core$Random$iLogBase, b, (i / b) | 0));
-	});
-var _elm_lang$core$Random$command = _elm_lang$core$Native_Platform.leaf('Random');
-var _elm_lang$core$Random$Generator = function (a) {
-	return {ctor: 'Generator', _0: a};
-};
-var _elm_lang$core$Random$list = F2(
-	function (n, _p9) {
-		var _p10 = _p9;
-		return _elm_lang$core$Random$Generator(
-			function (seed) {
-				return A4(
-					_elm_lang$core$Random$listHelp,
-					{ctor: '[]'},
-					n,
-					_p10._0,
-					seed);
-			});
-	});
-var _elm_lang$core$Random$map = F2(
-	function (func, _p11) {
-		var _p12 = _p11;
-		return _elm_lang$core$Random$Generator(
-			function (seed0) {
-				var _p13 = _p12._0(seed0);
-				var a = _p13._0;
-				var seed1 = _p13._1;
-				return {
-					ctor: '_Tuple2',
-					_0: func(a),
-					_1: seed1
-				};
-			});
-	});
-var _elm_lang$core$Random$map2 = F3(
-	function (func, _p15, _p14) {
-		var _p16 = _p15;
-		var _p17 = _p14;
-		return _elm_lang$core$Random$Generator(
-			function (seed0) {
-				var _p18 = _p16._0(seed0);
-				var a = _p18._0;
-				var seed1 = _p18._1;
-				var _p19 = _p17._0(seed1);
-				var b = _p19._0;
-				var seed2 = _p19._1;
-				return {
-					ctor: '_Tuple2',
-					_0: A2(func, a, b),
-					_1: seed2
-				};
-			});
-	});
-var _elm_lang$core$Random$pair = F2(
-	function (genA, genB) {
-		return A3(
-			_elm_lang$core$Random$map2,
-			F2(
-				function (v0, v1) {
-					return {ctor: '_Tuple2', _0: v0, _1: v1};
-				}),
-			genA,
-			genB);
-	});
-var _elm_lang$core$Random$map3 = F4(
-	function (func, _p22, _p21, _p20) {
-		var _p23 = _p22;
-		var _p24 = _p21;
-		var _p25 = _p20;
-		return _elm_lang$core$Random$Generator(
-			function (seed0) {
-				var _p26 = _p23._0(seed0);
-				var a = _p26._0;
-				var seed1 = _p26._1;
-				var _p27 = _p24._0(seed1);
-				var b = _p27._0;
-				var seed2 = _p27._1;
-				var _p28 = _p25._0(seed2);
-				var c = _p28._0;
-				var seed3 = _p28._1;
-				return {
-					ctor: '_Tuple2',
-					_0: A3(func, a, b, c),
-					_1: seed3
-				};
-			});
-	});
-var _elm_lang$core$Random$map4 = F5(
-	function (func, _p32, _p31, _p30, _p29) {
-		var _p33 = _p32;
-		var _p34 = _p31;
-		var _p35 = _p30;
-		var _p36 = _p29;
-		return _elm_lang$core$Random$Generator(
-			function (seed0) {
-				var _p37 = _p33._0(seed0);
-				var a = _p37._0;
-				var seed1 = _p37._1;
-				var _p38 = _p34._0(seed1);
-				var b = _p38._0;
-				var seed2 = _p38._1;
-				var _p39 = _p35._0(seed2);
-				var c = _p39._0;
-				var seed3 = _p39._1;
-				var _p40 = _p36._0(seed3);
-				var d = _p40._0;
-				var seed4 = _p40._1;
-				return {
-					ctor: '_Tuple2',
-					_0: A4(func, a, b, c, d),
-					_1: seed4
-				};
-			});
-	});
-var _elm_lang$core$Random$map5 = F6(
-	function (func, _p45, _p44, _p43, _p42, _p41) {
-		var _p46 = _p45;
-		var _p47 = _p44;
-		var _p48 = _p43;
-		var _p49 = _p42;
-		var _p50 = _p41;
-		return _elm_lang$core$Random$Generator(
-			function (seed0) {
-				var _p51 = _p46._0(seed0);
-				var a = _p51._0;
-				var seed1 = _p51._1;
-				var _p52 = _p47._0(seed1);
-				var b = _p52._0;
-				var seed2 = _p52._1;
-				var _p53 = _p48._0(seed2);
-				var c = _p53._0;
-				var seed3 = _p53._1;
-				var _p54 = _p49._0(seed3);
-				var d = _p54._0;
-				var seed4 = _p54._1;
-				var _p55 = _p50._0(seed4);
-				var e = _p55._0;
-				var seed5 = _p55._1;
-				return {
-					ctor: '_Tuple2',
-					_0: A5(func, a, b, c, d, e),
-					_1: seed5
-				};
-			});
-	});
-var _elm_lang$core$Random$andThen = F2(
-	function (callback, _p56) {
-		var _p57 = _p56;
-		return _elm_lang$core$Random$Generator(
-			function (seed) {
-				var _p58 = _p57._0(seed);
-				var result = _p58._0;
-				var newSeed = _p58._1;
-				var _p59 = callback(result);
-				var genB = _p59._0;
-				return genB(newSeed);
-			});
-	});
-var _elm_lang$core$Random$State = F2(
-	function (a, b) {
-		return {ctor: 'State', _0: a, _1: b};
-	});
-var _elm_lang$core$Random$initState = function (seed) {
-	var s = A2(_elm_lang$core$Basics$max, seed, 0 - seed);
-	var q = (s / (_elm_lang$core$Random$magicNum6 - 1)) | 0;
-	var s2 = A2(_elm_lang$core$Basics_ops['%'], q, _elm_lang$core$Random$magicNum7 - 1);
-	var s1 = A2(_elm_lang$core$Basics_ops['%'], s, _elm_lang$core$Random$magicNum6 - 1);
-	return A2(_elm_lang$core$Random$State, s1 + 1, s2 + 1);
-};
-var _elm_lang$core$Random$next = function (_p60) {
-	var _p61 = _p60;
-	var _p63 = _p61._1;
-	var _p62 = _p61._0;
-	var k2 = (_p63 / _elm_lang$core$Random$magicNum3) | 0;
-	var rawState2 = (_elm_lang$core$Random$magicNum4 * (_p63 - (k2 * _elm_lang$core$Random$magicNum3))) - (k2 * _elm_lang$core$Random$magicNum5);
-	var newState2 = (_elm_lang$core$Native_Utils.cmp(rawState2, 0) < 0) ? (rawState2 + _elm_lang$core$Random$magicNum7) : rawState2;
-	var k1 = (_p62 / _elm_lang$core$Random$magicNum1) | 0;
-	var rawState1 = (_elm_lang$core$Random$magicNum0 * (_p62 - (k1 * _elm_lang$core$Random$magicNum1))) - (k1 * _elm_lang$core$Random$magicNum2);
-	var newState1 = (_elm_lang$core$Native_Utils.cmp(rawState1, 0) < 0) ? (rawState1 + _elm_lang$core$Random$magicNum6) : rawState1;
-	var z = newState1 - newState2;
-	var newZ = (_elm_lang$core$Native_Utils.cmp(z, 1) < 0) ? (z + _elm_lang$core$Random$magicNum8) : z;
-	return {
-		ctor: '_Tuple2',
-		_0: newZ,
-		_1: A2(_elm_lang$core$Random$State, newState1, newState2)
-	};
-};
-var _elm_lang$core$Random$split = function (_p64) {
-	var _p65 = _p64;
-	var _p68 = _p65._1;
-	var _p67 = _p65._0;
-	var _p66 = _elm_lang$core$Tuple$second(
-		_elm_lang$core$Random$next(_p65));
-	var t1 = _p66._0;
-	var t2 = _p66._1;
-	var new_s2 = _elm_lang$core$Native_Utils.eq(_p68, 1) ? (_elm_lang$core$Random$magicNum7 - 1) : (_p68 - 1);
-	var new_s1 = _elm_lang$core$Native_Utils.eq(_p67, _elm_lang$core$Random$magicNum6 - 1) ? 1 : (_p67 + 1);
-	return {
-		ctor: '_Tuple2',
-		_0: A2(_elm_lang$core$Random$State, new_s1, t2),
-		_1: A2(_elm_lang$core$Random$State, t1, new_s2)
-	};
-};
-var _elm_lang$core$Random$Seed = function (a) {
-	return {ctor: 'Seed', _0: a};
-};
-var _elm_lang$core$Random$int = F2(
-	function (a, b) {
-		return _elm_lang$core$Random$Generator(
-			function (_p69) {
-				var _p70 = _p69;
-				var _p75 = _p70._0;
-				var base = 2147483561;
-				var f = F3(
-					function (n, acc, state) {
-						f:
-						while (true) {
-							var _p71 = n;
-							if (_p71 === 0) {
-								return {ctor: '_Tuple2', _0: acc, _1: state};
-							} else {
-								var _p72 = _p75.next(state);
-								var x = _p72._0;
-								var nextState = _p72._1;
-								var _v27 = n - 1,
-									_v28 = x + (acc * base),
-									_v29 = nextState;
-								n = _v27;
-								acc = _v28;
-								state = _v29;
-								continue f;
-							}
-						}
-					});
-				var _p73 = (_elm_lang$core$Native_Utils.cmp(a, b) < 0) ? {ctor: '_Tuple2', _0: a, _1: b} : {ctor: '_Tuple2', _0: b, _1: a};
-				var lo = _p73._0;
-				var hi = _p73._1;
-				var k = (hi - lo) + 1;
-				var n = A2(_elm_lang$core$Random$iLogBase, base, k);
-				var _p74 = A3(f, n, 1, _p75.state);
-				var v = _p74._0;
-				var nextState = _p74._1;
-				return {
-					ctor: '_Tuple2',
-					_0: lo + A2(_elm_lang$core$Basics_ops['%'], v, k),
-					_1: _elm_lang$core$Random$Seed(
-						_elm_lang$core$Native_Utils.update(
-							_p75,
-							{state: nextState}))
-				};
-			});
-	});
-var _elm_lang$core$Random$bool = A2(
-	_elm_lang$core$Random$map,
-	F2(
-		function (x, y) {
-			return _elm_lang$core$Native_Utils.eq(x, y);
-		})(1),
-	A2(_elm_lang$core$Random$int, 0, 1));
-var _elm_lang$core$Random$float = F2(
-	function (a, b) {
-		return _elm_lang$core$Random$Generator(
-			function (seed) {
-				var _p76 = A2(
-					_elm_lang$core$Random$step,
-					A2(_elm_lang$core$Random$int, _elm_lang$core$Random$minInt, _elm_lang$core$Random$maxInt),
-					seed);
-				var number = _p76._0;
-				var newSeed = _p76._1;
-				var negativeOneToOne = _elm_lang$core$Basics$toFloat(number) / _elm_lang$core$Basics$toFloat(_elm_lang$core$Random$maxInt - _elm_lang$core$Random$minInt);
-				var _p77 = (_elm_lang$core$Native_Utils.cmp(a, b) < 0) ? {ctor: '_Tuple2', _0: a, _1: b} : {ctor: '_Tuple2', _0: b, _1: a};
-				var lo = _p77._0;
-				var hi = _p77._1;
-				var scaled = ((lo + hi) / 2) + ((hi - lo) * negativeOneToOne);
-				return {ctor: '_Tuple2', _0: scaled, _1: newSeed};
-			});
-	});
-var _elm_lang$core$Random$initialSeed = function (n) {
-	return _elm_lang$core$Random$Seed(
-		{
-			state: _elm_lang$core$Random$initState(n),
-			next: _elm_lang$core$Random$next,
-			split: _elm_lang$core$Random$split,
-			range: _elm_lang$core$Random$range
-		});
-};
-var _elm_lang$core$Random$init = A2(
-	_elm_lang$core$Task$andThen,
-	function (t) {
-		return _elm_lang$core$Task$succeed(
-			_elm_lang$core$Random$initialSeed(
-				_elm_lang$core$Basics$round(t)));
-	},
-	_elm_lang$core$Time$now);
-var _elm_lang$core$Random$Generate = function (a) {
-	return {ctor: 'Generate', _0: a};
-};
-var _elm_lang$core$Random$generate = F2(
-	function (tagger, generator) {
-		return _elm_lang$core$Random$command(
-			_elm_lang$core$Random$Generate(
-				A2(_elm_lang$core$Random$map, tagger, generator)));
-	});
-var _elm_lang$core$Random$cmdMap = F2(
-	function (func, _p78) {
-		var _p79 = _p78;
-		return _elm_lang$core$Random$Generate(
-			A2(_elm_lang$core$Random$map, func, _p79._0));
-	});
-_elm_lang$core$Native_Platform.effectManagers['Random'] = {pkg: 'elm-lang/core', init: _elm_lang$core$Random$init, onEffects: _elm_lang$core$Random$onEffects, onSelfMsg: _elm_lang$core$Random$onSelfMsg, tag: 'cmd', cmdMap: _elm_lang$core$Random$cmdMap};
-
-var _connexity$ksql_web$Stream$isPaused = function (stream) {
-	var _p0 = stream;
-	if (_p0.ctor === 'Live') {
-		return false;
-	} else {
-		return true;
-	}
-};
-var _connexity$ksql_web$Stream$items = function (stream) {
-	var _p1 = stream;
-	if (_p1.ctor === 'Live') {
-		return _p1._1;
-	} else {
-		return _p1._1;
-	}
-};
-var _connexity$ksql_web$Stream$addToStream = F3(
-	function (limit, item, items) {
-		return A2(
-			_elm_lang$core$List$take,
-			limit,
-			{ctor: '::', _0: item, _1: items});
-	});
-var _connexity$ksql_web$Stream$Paused = F3(
-	function (a, b, c) {
-		return {ctor: 'Paused', _0: a, _1: b, _2: c};
-	});
-var _connexity$ksql_web$Stream$Live = F2(
-	function (a, b) {
-		return {ctor: 'Live', _0: a, _1: b};
-	});
-var _connexity$ksql_web$Stream$empty = function (limit) {
-	return A2(
-		_connexity$ksql_web$Stream$Live,
-		limit,
-		{ctor: '[]'});
-};
-var _connexity$ksql_web$Stream_ops = _connexity$ksql_web$Stream_ops || {};
-_connexity$ksql_web$Stream_ops[':::'] = F2(
-	function (item, stream) {
-		var _p2 = stream;
-		if (_p2.ctor === 'Live') {
-			var _p3 = _p2._0;
-			return A2(
-				_connexity$ksql_web$Stream$Live,
-				_p3,
-				A3(_connexity$ksql_web$Stream$addToStream, _p3, item, _p2._1));
-		} else {
-			var _p4 = _p2._0;
-			return A3(
-				_connexity$ksql_web$Stream$Paused,
-				_p4,
-				_p2._1,
-				A3(_connexity$ksql_web$Stream$addToStream, _p4, item, _p2._2));
-		}
-	});
-var _connexity$ksql_web$Stream$togglePause = function (stream) {
-	var _p5 = stream;
-	if (_p5.ctor === 'Live') {
-		return A3(
-			_connexity$ksql_web$Stream$Paused,
-			_p5._0,
-			_p5._1,
-			{ctor: '[]'});
-	} else {
-		var _p6 = _p5._0;
-		return A2(
-			_connexity$ksql_web$Stream$Live,
-			_p6,
-			A2(
-				_elm_lang$core$List$take,
-				_p6,
-				A2(_elm_lang$core$Basics_ops['++'], _p5._2, _p5._1)));
-	}
-};
-
-var _elm_lang$websocket$Native_WebSocket = function() {
-
-function open(url, settings)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		try
-		{
-			var socket = new WebSocket(url);
-			socket.elm_web_socket = true;
-		}
-		catch(err)
-		{
-			return callback(_elm_lang$core$Native_Scheduler.fail({
-				ctor: err.name === 'SecurityError' ? 'BadSecurity' : 'BadArgs',
-				_0: err.message
-			}));
-		}
-
-		socket.addEventListener("open", function(event) {
-			callback(_elm_lang$core$Native_Scheduler.succeed(socket));
-		});
-
-		socket.addEventListener("message", function(event) {
-			_elm_lang$core$Native_Scheduler.rawSpawn(A2(settings.onMessage, socket, event.data));
-		});
-
-		socket.addEventListener("close", function(event) {
-			_elm_lang$core$Native_Scheduler.rawSpawn(settings.onClose({
-				code: event.code,
-				reason: event.reason,
-				wasClean: event.wasClean
-			}));
-		});
-
-		return function()
-		{
-			if (socket && socket.close)
-			{
-				socket.close();
-			}
-		};
-	});
-}
-
-function send(socket, string)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
-	{
-		var result =
-			socket.readyState === WebSocket.OPEN
-				? _elm_lang$core$Maybe$Nothing
-				: _elm_lang$core$Maybe$Just({ ctor: 'NotOpen' });
-
-		try
-		{
-			socket.send(string);
-		}
-		catch(err)
-		{
-			result = _elm_lang$core$Maybe$Just({ ctor: 'BadString' });
-		}
-
-		callback(_elm_lang$core$Native_Scheduler.succeed(result));
-	});
-}
-
-function close(code, reason, socket)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
-		try
-		{
-			socket.close(code, reason);
-		}
-		catch(err)
-		{
-			return callback(_elm_lang$core$Native_Scheduler.fail(_elm_lang$core$Maybe$Just({
-				ctor: err.name === 'SyntaxError' ? 'BadReason' : 'BadCode'
-			})));
-		}
-		callback(_elm_lang$core$Native_Scheduler.succeed(_elm_lang$core$Maybe$Nothing));
-	});
-}
-
-function bytesQueued(socket)
-{
-	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback) {
-		callback(_elm_lang$core$Native_Scheduler.succeed(socket.bufferedAmount));
-	});
-}
-
-return {
-	open: F2(open),
-	send: F2(send),
-	close: F3(close),
-	bytesQueued: bytesQueued
-};
-
-}();
-
-var _elm_lang$websocket$WebSocket_LowLevel$bytesQueued = _elm_lang$websocket$Native_WebSocket.bytesQueued;
-var _elm_lang$websocket$WebSocket_LowLevel$send = _elm_lang$websocket$Native_WebSocket.send;
-var _elm_lang$websocket$WebSocket_LowLevel$closeWith = _elm_lang$websocket$Native_WebSocket.close;
-var _elm_lang$websocket$WebSocket_LowLevel$close = function (socket) {
-	return A2(
-		_elm_lang$core$Task$map,
-		_elm_lang$core$Basics$always(
-			{ctor: '_Tuple0'}),
-		A3(_elm_lang$websocket$WebSocket_LowLevel$closeWith, 1000, '', socket));
-};
-var _elm_lang$websocket$WebSocket_LowLevel$open = _elm_lang$websocket$Native_WebSocket.open;
-var _elm_lang$websocket$WebSocket_LowLevel$Settings = F2(
-	function (a, b) {
-		return {onMessage: a, onClose: b};
-	});
-var _elm_lang$websocket$WebSocket_LowLevel$WebSocket = {ctor: 'WebSocket'};
-var _elm_lang$websocket$WebSocket_LowLevel$BadArgs = {ctor: 'BadArgs'};
-var _elm_lang$websocket$WebSocket_LowLevel$BadSecurity = {ctor: 'BadSecurity'};
-var _elm_lang$websocket$WebSocket_LowLevel$BadReason = {ctor: 'BadReason'};
-var _elm_lang$websocket$WebSocket_LowLevel$BadCode = {ctor: 'BadCode'};
-var _elm_lang$websocket$WebSocket_LowLevel$BadString = {ctor: 'BadString'};
-var _elm_lang$websocket$WebSocket_LowLevel$NotOpen = {ctor: 'NotOpen'};
-
-var _elm_lang$websocket$WebSocket$closeConnection = function (connection) {
-	var _p0 = connection;
-	if (_p0.ctor === 'Opening') {
-		return _elm_lang$core$Process$kill(_p0._1);
-	} else {
-		return _elm_lang$websocket$WebSocket_LowLevel$close(_p0._0);
-	}
-};
-var _elm_lang$websocket$WebSocket$after = function (backoff) {
-	return (_elm_lang$core$Native_Utils.cmp(backoff, 1) < 0) ? _elm_lang$core$Task$succeed(
-		{ctor: '_Tuple0'}) : _elm_lang$core$Process$sleep(
-		_elm_lang$core$Basics$toFloat(
-			10 * Math.pow(2, backoff)));
-};
-var _elm_lang$websocket$WebSocket$removeQueue = F2(
-	function (name, state) {
-		return _elm_lang$core$Native_Utils.update(
-			state,
-			{
-				queues: A2(_elm_lang$core$Dict$remove, name, state.queues)
-			});
-	});
-var _elm_lang$websocket$WebSocket$updateSocket = F3(
-	function (name, connection, state) {
-		return _elm_lang$core$Native_Utils.update(
-			state,
-			{
-				sockets: A3(_elm_lang$core$Dict$insert, name, connection, state.sockets)
-			});
-	});
-var _elm_lang$websocket$WebSocket$add = F2(
-	function (value, maybeList) {
-		var _p1 = maybeList;
-		if (_p1.ctor === 'Nothing') {
-			return _elm_lang$core$Maybe$Just(
-				{
-					ctor: '::',
-					_0: value,
-					_1: {ctor: '[]'}
-				});
-		} else {
-			return _elm_lang$core$Maybe$Just(
-				{ctor: '::', _0: value, _1: _p1._0});
-		}
-	});
-var _elm_lang$websocket$WebSocket$buildSubDict = F2(
-	function (subs, dict) {
-		buildSubDict:
-		while (true) {
-			var _p2 = subs;
-			if (_p2.ctor === '[]') {
-				return dict;
-			} else {
-				if (_p2._0.ctor === 'Listen') {
-					var _v3 = _p2._1,
-						_v4 = A3(
-						_elm_lang$core$Dict$update,
-						_p2._0._0,
-						_elm_lang$websocket$WebSocket$add(_p2._0._1),
-						dict);
-					subs = _v3;
-					dict = _v4;
-					continue buildSubDict;
-				} else {
-					var _v5 = _p2._1,
-						_v6 = A3(
-						_elm_lang$core$Dict$update,
-						_p2._0._0,
-						function (_p3) {
-							return _elm_lang$core$Maybe$Just(
-								A2(
-									_elm_lang$core$Maybe$withDefault,
-									{ctor: '[]'},
-									_p3));
-						},
-						dict);
-					subs = _v5;
-					dict = _v6;
-					continue buildSubDict;
-				}
-			}
-		}
-	});
-var _elm_lang$websocket$WebSocket_ops = _elm_lang$websocket$WebSocket_ops || {};
-_elm_lang$websocket$WebSocket_ops['&>'] = F2(
-	function (t1, t2) {
-		return A2(
-			_elm_lang$core$Task$andThen,
-			function (_p4) {
-				return t2;
-			},
-			t1);
-	});
-var _elm_lang$websocket$WebSocket$sendMessagesHelp = F3(
-	function (cmds, socketsDict, queuesDict) {
-		sendMessagesHelp:
-		while (true) {
-			var _p5 = cmds;
-			if (_p5.ctor === '[]') {
-				return _elm_lang$core$Task$succeed(queuesDict);
-			} else {
-				var _p9 = _p5._1;
-				var _p8 = _p5._0._0;
-				var _p7 = _p5._0._1;
-				var _p6 = A2(_elm_lang$core$Dict$get, _p8, socketsDict);
-				if ((_p6.ctor === 'Just') && (_p6._0.ctor === 'Connected')) {
-					return A2(
-						_elm_lang$websocket$WebSocket_ops['&>'],
-						A2(_elm_lang$websocket$WebSocket_LowLevel$send, _p6._0._0, _p7),
-						A3(_elm_lang$websocket$WebSocket$sendMessagesHelp, _p9, socketsDict, queuesDict));
-				} else {
-					var _v9 = _p9,
-						_v10 = socketsDict,
-						_v11 = A3(
-						_elm_lang$core$Dict$update,
-						_p8,
-						_elm_lang$websocket$WebSocket$add(_p7),
-						queuesDict);
-					cmds = _v9;
-					socketsDict = _v10;
-					queuesDict = _v11;
-					continue sendMessagesHelp;
-				}
-			}
-		}
-	});
-var _elm_lang$websocket$WebSocket$subscription = _elm_lang$core$Native_Platform.leaf('WebSocket');
-var _elm_lang$websocket$WebSocket$command = _elm_lang$core$Native_Platform.leaf('WebSocket');
-var _elm_lang$websocket$WebSocket$State = F3(
-	function (a, b, c) {
-		return {sockets: a, queues: b, subs: c};
-	});
-var _elm_lang$websocket$WebSocket$init = _elm_lang$core$Task$succeed(
-	A3(_elm_lang$websocket$WebSocket$State, _elm_lang$core$Dict$empty, _elm_lang$core$Dict$empty, _elm_lang$core$Dict$empty));
-var _elm_lang$websocket$WebSocket$Send = F2(
-	function (a, b) {
-		return {ctor: 'Send', _0: a, _1: b};
-	});
-var _elm_lang$websocket$WebSocket$send = F2(
-	function (url, message) {
-		return _elm_lang$websocket$WebSocket$command(
-			A2(_elm_lang$websocket$WebSocket$Send, url, message));
-	});
-var _elm_lang$websocket$WebSocket$cmdMap = F2(
-	function (_p11, _p10) {
-		var _p12 = _p10;
-		return A2(_elm_lang$websocket$WebSocket$Send, _p12._0, _p12._1);
-	});
-var _elm_lang$websocket$WebSocket$KeepAlive = function (a) {
-	return {ctor: 'KeepAlive', _0: a};
-};
-var _elm_lang$websocket$WebSocket$keepAlive = function (url) {
-	return _elm_lang$websocket$WebSocket$subscription(
-		_elm_lang$websocket$WebSocket$KeepAlive(url));
-};
-var _elm_lang$websocket$WebSocket$Listen = F2(
-	function (a, b) {
-		return {ctor: 'Listen', _0: a, _1: b};
-	});
-var _elm_lang$websocket$WebSocket$listen = F2(
-	function (url, tagger) {
-		return _elm_lang$websocket$WebSocket$subscription(
-			A2(_elm_lang$websocket$WebSocket$Listen, url, tagger));
-	});
-var _elm_lang$websocket$WebSocket$subMap = F2(
-	function (func, sub) {
-		var _p13 = sub;
-		if (_p13.ctor === 'Listen') {
-			return A2(
-				_elm_lang$websocket$WebSocket$Listen,
-				_p13._0,
-				function (_p14) {
-					return func(
-						_p13._1(_p14));
-				});
-		} else {
-			return _elm_lang$websocket$WebSocket$KeepAlive(_p13._0);
-		}
-	});
-var _elm_lang$websocket$WebSocket$Connected = function (a) {
-	return {ctor: 'Connected', _0: a};
-};
-var _elm_lang$websocket$WebSocket$Opening = F2(
-	function (a, b) {
-		return {ctor: 'Opening', _0: a, _1: b};
-	});
-var _elm_lang$websocket$WebSocket$BadOpen = function (a) {
-	return {ctor: 'BadOpen', _0: a};
-};
-var _elm_lang$websocket$WebSocket$GoodOpen = F2(
-	function (a, b) {
-		return {ctor: 'GoodOpen', _0: a, _1: b};
-	});
-var _elm_lang$websocket$WebSocket$Die = function (a) {
-	return {ctor: 'Die', _0: a};
-};
-var _elm_lang$websocket$WebSocket$Receive = F2(
-	function (a, b) {
-		return {ctor: 'Receive', _0: a, _1: b};
-	});
-var _elm_lang$websocket$WebSocket$open = F2(
-	function (name, router) {
-		return A2(
-			_elm_lang$websocket$WebSocket_LowLevel$open,
-			name,
-			{
-				onMessage: F2(
-					function (_p15, msg) {
-						return A2(
-							_elm_lang$core$Platform$sendToSelf,
-							router,
-							A2(_elm_lang$websocket$WebSocket$Receive, name, msg));
-					}),
-				onClose: function (details) {
-					return A2(
-						_elm_lang$core$Platform$sendToSelf,
-						router,
-						_elm_lang$websocket$WebSocket$Die(name));
-				}
-			});
-	});
-var _elm_lang$websocket$WebSocket$attemptOpen = F3(
-	function (router, backoff, name) {
-		var badOpen = function (_p16) {
-			return A2(
-				_elm_lang$core$Platform$sendToSelf,
-				router,
-				_elm_lang$websocket$WebSocket$BadOpen(name));
-		};
-		var goodOpen = function (ws) {
-			return A2(
-				_elm_lang$core$Platform$sendToSelf,
-				router,
-				A2(_elm_lang$websocket$WebSocket$GoodOpen, name, ws));
-		};
-		var actuallyAttemptOpen = A2(
-			_elm_lang$core$Task$onError,
-			badOpen,
-			A2(
-				_elm_lang$core$Task$andThen,
-				goodOpen,
-				A2(_elm_lang$websocket$WebSocket$open, name, router)));
-		return _elm_lang$core$Process$spawn(
-			A2(
-				_elm_lang$websocket$WebSocket_ops['&>'],
-				_elm_lang$websocket$WebSocket$after(backoff),
-				actuallyAttemptOpen));
-	});
-var _elm_lang$websocket$WebSocket$onEffects = F4(
-	function (router, cmds, subs, state) {
-		var newSubs = A2(_elm_lang$websocket$WebSocket$buildSubDict, subs, _elm_lang$core$Dict$empty);
-		var cleanup = function (newQueues) {
-			var rightStep = F3(
-				function (name, connection, getNewSockets) {
-					return A2(
-						_elm_lang$websocket$WebSocket_ops['&>'],
-						_elm_lang$websocket$WebSocket$closeConnection(connection),
-						getNewSockets);
-				});
-			var bothStep = F4(
-				function (name, _p17, connection, getNewSockets) {
-					return A2(
-						_elm_lang$core$Task$map,
-						A2(_elm_lang$core$Dict$insert, name, connection),
-						getNewSockets);
-				});
-			var leftStep = F3(
-				function (name, _p18, getNewSockets) {
-					return A2(
-						_elm_lang$core$Task$andThen,
-						function (newSockets) {
-							return A2(
-								_elm_lang$core$Task$andThen,
-								function (pid) {
-									return _elm_lang$core$Task$succeed(
-										A3(
-											_elm_lang$core$Dict$insert,
-											name,
-											A2(_elm_lang$websocket$WebSocket$Opening, 0, pid),
-											newSockets));
-								},
-								A3(_elm_lang$websocket$WebSocket$attemptOpen, router, 0, name));
-						},
-						getNewSockets);
-				});
-			var newEntries = A2(
-				_elm_lang$core$Dict$union,
-				newQueues,
-				A2(
-					_elm_lang$core$Dict$map,
-					F2(
-						function (k, v) {
-							return {ctor: '[]'};
-						}),
-					newSubs));
-			var collectNewSockets = A6(
-				_elm_lang$core$Dict$merge,
-				leftStep,
-				bothStep,
-				rightStep,
-				newEntries,
-				state.sockets,
-				_elm_lang$core$Task$succeed(_elm_lang$core$Dict$empty));
-			return A2(
-				_elm_lang$core$Task$andThen,
-				function (newSockets) {
-					return _elm_lang$core$Task$succeed(
-						A3(_elm_lang$websocket$WebSocket$State, newSockets, newQueues, newSubs));
-				},
-				collectNewSockets);
-		};
-		var sendMessagesGetNewQueues = A3(_elm_lang$websocket$WebSocket$sendMessagesHelp, cmds, state.sockets, state.queues);
-		return A2(_elm_lang$core$Task$andThen, cleanup, sendMessagesGetNewQueues);
-	});
-var _elm_lang$websocket$WebSocket$onSelfMsg = F3(
-	function (router, selfMsg, state) {
-		var _p19 = selfMsg;
-		switch (_p19.ctor) {
-			case 'Receive':
-				var sends = A2(
-					_elm_lang$core$List$map,
-					function (tagger) {
-						return A2(
-							_elm_lang$core$Platform$sendToApp,
-							router,
-							tagger(_p19._1));
-					},
-					A2(
-						_elm_lang$core$Maybe$withDefault,
-						{ctor: '[]'},
-						A2(_elm_lang$core$Dict$get, _p19._0, state.subs)));
-				return A2(
-					_elm_lang$websocket$WebSocket_ops['&>'],
-					_elm_lang$core$Task$sequence(sends),
-					_elm_lang$core$Task$succeed(state));
-			case 'Die':
-				var _p21 = _p19._0;
-				var _p20 = A2(_elm_lang$core$Dict$get, _p21, state.sockets);
-				if (_p20.ctor === 'Nothing') {
-					return _elm_lang$core$Task$succeed(state);
-				} else {
-					return A2(
-						_elm_lang$core$Task$andThen,
-						function (pid) {
-							return _elm_lang$core$Task$succeed(
-								A3(
-									_elm_lang$websocket$WebSocket$updateSocket,
-									_p21,
-									A2(_elm_lang$websocket$WebSocket$Opening, 0, pid),
-									state));
-						},
-						A3(_elm_lang$websocket$WebSocket$attemptOpen, router, 0, _p21));
-				}
-			case 'GoodOpen':
-				var _p24 = _p19._1;
-				var _p23 = _p19._0;
-				var _p22 = A2(_elm_lang$core$Dict$get, _p23, state.queues);
-				if (_p22.ctor === 'Nothing') {
-					return _elm_lang$core$Task$succeed(
-						A3(
-							_elm_lang$websocket$WebSocket$updateSocket,
-							_p23,
-							_elm_lang$websocket$WebSocket$Connected(_p24),
-							state));
-				} else {
-					return A3(
-						_elm_lang$core$List$foldl,
-						F2(
-							function (msg, task) {
-								return A2(
-									_elm_lang$websocket$WebSocket_ops['&>'],
-									A2(_elm_lang$websocket$WebSocket_LowLevel$send, _p24, msg),
-									task);
-							}),
-						_elm_lang$core$Task$succeed(
-							A2(
-								_elm_lang$websocket$WebSocket$removeQueue,
-								_p23,
-								A3(
-									_elm_lang$websocket$WebSocket$updateSocket,
-									_p23,
-									_elm_lang$websocket$WebSocket$Connected(_p24),
-									state))),
-						_p22._0);
-				}
-			default:
-				var _p27 = _p19._0;
-				var _p25 = A2(_elm_lang$core$Dict$get, _p27, state.sockets);
-				if (_p25.ctor === 'Nothing') {
-					return _elm_lang$core$Task$succeed(state);
-				} else {
-					if (_p25._0.ctor === 'Opening') {
-						var _p26 = _p25._0._0;
-						return A2(
-							_elm_lang$core$Task$andThen,
-							function (pid) {
-								return _elm_lang$core$Task$succeed(
-									A3(
-										_elm_lang$websocket$WebSocket$updateSocket,
-										_p27,
-										A2(_elm_lang$websocket$WebSocket$Opening, _p26 + 1, pid),
-										state));
-							},
-							A3(_elm_lang$websocket$WebSocket$attemptOpen, router, _p26 + 1, _p27));
-					} else {
-						return _elm_lang$core$Task$succeed(state);
-					}
-				}
-		}
-	});
-_elm_lang$core$Native_Platform.effectManagers['WebSocket'] = {pkg: 'elm-lang/websocket', init: _elm_lang$websocket$WebSocket$init, onEffects: _elm_lang$websocket$WebSocket$onEffects, onSelfMsg: _elm_lang$websocket$WebSocket$onSelfMsg, tag: 'fx', cmdMap: _elm_lang$websocket$WebSocket$cmdMap, subMap: _elm_lang$websocket$WebSocket$subMap};
-
-var _connexity$ksql_web$Main$messagesView = F2(
+var _connexity$ksql_web$Ksql_View$messagesView = F2(
 	function (maybeClassName, messages) {
 		var _p0 = messages;
 		if (_p0.ctor === '[]') {
@@ -10451,7 +12109,7 @@ var _connexity$ksql_web$Main$messagesView = F2(
 			};
 		}
 	});
-var _connexity$ksql_web$Main$metadataRowView = F2(
+var _connexity$ksql_web$Ksql_View$metadataRowView = F2(
 	function (key, value) {
 		return A2(
 			_elm_lang$html$Html$tr,
@@ -10491,7 +12149,7 @@ var _connexity$ksql_web$Main$metadataRowView = F2(
 				}
 			});
 	});
-var _connexity$ksql_web$Main$metadataTableView = function (metadata) {
+var _connexity$ksql_web$Ksql_View$metadataTableView = function (metadata) {
 	return A2(
 		_elm_lang$html$Html$table,
 		{
@@ -10501,10 +12159,10 @@ var _connexity$ksql_web$Main$metadataTableView = function (metadata) {
 		},
 		A2(
 			_elm_lang$core$List$map,
-			_elm_lang$core$Basics$uncurry(_connexity$ksql_web$Main$metadataRowView),
+			_elm_lang$core$Basics$uncurry(_connexity$ksql_web$Ksql_View$metadataRowView),
 			metadata));
 };
-var _connexity$ksql_web$Main$jsonValueView = function (col) {
+var _connexity$ksql_web$Ksql_View$jsonValueView = function (col) {
 	var _p2 = col;
 	switch (_p2.ctor) {
 		case 'StringColumn':
@@ -10595,7 +12253,7 @@ var _connexity$ksql_web$Main$jsonValueView = function (col) {
 								_0: _elm_lang$html$Html$text(', '),
 								_1: {ctor: '[]'}
 							}),
-						A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Main$jsonValueView, _p2._0)),
+						A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Ksql_View$jsonValueView, _p2._0)),
 					{
 						ctor: '::',
 						_0: A2(
@@ -10613,10 +12271,10 @@ var _connexity$ksql_web$Main$jsonValueView = function (col) {
 						_1: {ctor: '[]'}
 					}));
 		default:
-			return _connexity$ksql_web$Main$colContentView(_p2);
+			return _connexity$ksql_web$Ksql_View$colContentView(_p2);
 	}
 };
-var _connexity$ksql_web$Main$colContentView = function (col) {
+var _connexity$ksql_web$Ksql_View$colContentView = function (col) {
 	var _p3 = col;
 	switch (_p3.ctor) {
 		case 'BoolColumn':
@@ -10672,7 +12330,7 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 						_0: _elm_lang$html$Html$text(', '),
 						_1: {ctor: '[]'}
 					}),
-				A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Main$colContentView, _p3._0));
+				A2(_elm_lang$core$List$concatMap, _connexity$ksql_web$Ksql_View$colContentView, _p3._0));
 		default:
 			return A2(
 				_elm_lang$core$Basics_ops['++'],
@@ -10730,7 +12388,7 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 													A2(_elm_lang$core$Basics_ops['++'], _p5._0, '\":'))),
 											_1: {ctor: '[]'}
 										}),
-									_1: _connexity$ksql_web$Main$jsonValueView(_p5._1)
+									_1: _connexity$ksql_web$Ksql_View$jsonValueView(_p5._1)
 								};
 							},
 							_p3._0)),
@@ -10752,7 +12410,7 @@ var _connexity$ksql_web$Main$colContentView = function (col) {
 					}));
 	}
 };
-var _connexity$ksql_web$Main$colView = F2(
+var _connexity$ksql_web$Ksql_View$colView = F2(
 	function (isHeader, col) {
 		return A2(
 			isHeader ? _elm_lang$html$Html$th : _elm_lang$html$Html$td,
@@ -10772,19 +12430,19 @@ var _connexity$ksql_web$Main$colView = F2(
 					};
 				}
 			}(),
-			_connexity$ksql_web$Main$colContentView(col));
+			_connexity$ksql_web$Ksql_View$colContentView(col));
 	});
-var _connexity$ksql_web$Main$rowView = F2(
+var _connexity$ksql_web$Ksql_View$rowView = F2(
 	function (isHeader, row) {
 		return A2(
 			_elm_lang$html$Html$tr,
 			{ctor: '[]'},
 			A2(
 				_elm_lang$core$List$map,
-				_connexity$ksql_web$Main$colView(isHeader),
+				_connexity$ksql_web$Ksql_View$colView(isHeader),
 				row));
 	});
-var _connexity$ksql_web$Main$rowKeyType = function (schema) {
+var _connexity$ksql_web$Ksql_View$rowKeyType = function (schema) {
 	return _elm_lang$core$List$head(
 		A2(
 			_elm_lang$core$List$filterMap,
@@ -10802,7 +12460,7 @@ var _connexity$ksql_web$Main$rowKeyType = function (schema) {
 			},
 			schema));
 };
-var _connexity$ksql_web$Main$progressBarView = function (completion) {
+var _connexity$ksql_web$Ksql_View$progressBarView = function (completion) {
 	return A2(
 		_elm_lang$html$Html$div,
 		{
@@ -10828,237 +12486,7 @@ var _connexity$ksql_web$Main$progressBarView = function (completion) {
 		},
 		{ctor: '[]'});
 };
-var _connexity$ksql_web$Main$currentQueryText = function (query) {
-	return A2(
-		_elm_lang$core$Maybe$withDefault,
-		'',
-		_elm_lang$core$List$head(
-			A2(
-				_elm_lang$core$List$filterMap,
-				_elm_lang$core$Basics$identity,
-				{
-					ctor: '::',
-					_0: A2(_elm_lang$core$Dict$get, query.currentHistoryIndex, query.editBuffers),
-					_1: {
-						ctor: '::',
-						_0: (_elm_lang$core$Native_Utils.cmp(query.currentHistoryIndex, 0) < 0) ? _elm_lang$core$Maybe$Nothing : _elm_lang$core$List$head(
-							A2(_elm_lang$core$List$drop, query.currentHistoryIndex, query.queryHistory)),
-						_1: {ctor: '[]'}
-					}
-				})));
-};
-var _connexity$ksql_web$Main$searchParts = function (search) {
-	return A2(
-		_elm_lang$core$String$split,
-		'&',
-		A2(_elm_lang$core$String$dropLeft, 1, search));
-};
-var _connexity$ksql_web$Main$queryTextFromSearch = function (search) {
-	return _elm_lang$core$List$head(
-		A2(
-			_elm_lang$core$List$filterMap,
-			function (searchPart) {
-				var _p8 = A2(_elm_lang$core$String$split, '=', searchPart);
-				if ((((_p8.ctor === '::') && (_p8._0 === 'query')) && (_p8._1.ctor === '::')) && (_p8._1._1.ctor === '[]')) {
-					return _elm_lang$http$Http$decodeUri(_p8._1._0);
-				} else {
-					return _elm_lang$core$Maybe$Nothing;
-				}
-			},
-			_connexity$ksql_web$Main$searchParts(search)));
-};
-var _connexity$ksql_web$Main$runOnInit = function (search) {
-	return !_elm_lang$core$List$isEmpty(
-		A2(
-			_elm_lang$core$List$filter,
-			_elm_lang$core$String$startsWith('run'),
-			_connexity$ksql_web$Main$searchParts(search)));
-};
-var _connexity$ksql_web$Main$ksqlCommandJson = function (query) {
-	return _elm_lang$core$Json_Encode$object(
-		{
-			ctor: '::',
-			_0: {
-				ctor: '_Tuple2',
-				_0: 'ksql',
-				_1: _elm_lang$core$Json_Encode$string(query)
-			},
-			_1: {ctor: '[]'}
-		});
-};
-var _connexity$ksql_web$Main$webSocketUrl = function (flag) {
-	return A2(
-		_elm_lang$core$Basics_ops['++'],
-		flag.secure ? 'wss' : 'ws',
-		A2(
-			_elm_lang$core$Basics_ops['++'],
-			'://',
-			A2(_elm_lang$core$Basics_ops['++'], flag.host, '/ksql')));
-};
-var _connexity$ksql_web$Main$sendQuery = F2(
-	function (flags, query) {
-		return A2(
-			_elm_lang$websocket$WebSocket$send,
-			_connexity$ksql_web$Main$webSocketUrl(flags),
-			A2(
-				_elm_lang$core$Json_Encode$encode,
-				0,
-				_connexity$ksql_web$Main$ksqlCommandJson(query)));
-	});
-var _connexity$ksql_web$Main$progressTickPeriod = 200 * _elm_lang$core$Time$millisecond;
-var _connexity$ksql_web$Main$progressMarkerLife = 1.5 * _elm_lang$core$Time$second;
-var _connexity$ksql_web$Main$maxQueryHistoryItems = 500;
-var _connexity$ksql_web$Main$maxDisplayedRows = 5000;
-var _connexity$ksql_web$Main$localStorageSetQueryHistoryCmd = _elm_lang$core$Native_Platform.outgoingPort(
-	'localStorageSetQueryHistoryCmd',
-	function (v) {
-		return _elm_lang$core$Native_List.toArray(v).map(
-			function (v) {
-				return v;
-			});
-	});
-var _connexity$ksql_web$Main$localStorageGetQueryHistoryCmd = _elm_lang$core$Native_Platform.outgoingPort(
-	'localStorageGetQueryHistoryCmd',
-	function (v) {
-		return null;
-	});
-var _connexity$ksql_web$Main$localStorageGetQueryHistorySub = _elm_lang$core$Native_Platform.incomingPort(
-	'localStorageGetQueryHistorySub',
-	_elm_lang$core$Json_Decode$list(_elm_lang$core$Json_Decode$string));
-var _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd = _elm_lang$core$Native_Platform.outgoingPort(
-	'codeMirrorFromTextAreaCmd',
-	function (v) {
-		return v;
-	});
-var _connexity$ksql_web$Main$codeMirrorDocSetValueCursorCmd = _elm_lang$core$Native_Platform.outgoingPort(
-	'codeMirrorDocSetValueCursorCmd',
-	function (v) {
-		return {
-			value: v.value,
-			cursor: {ch: v.cursor.ch, line: v.cursor.line}
-		};
-	});
-var _connexity$ksql_web$Main$codeMirrorDocValueChangedSub = _elm_lang$core$Native_Platform.incomingPort('codeMirrorDocValueChangedSub', _elm_lang$core$Json_Decode$string);
-var _connexity$ksql_web$Main$codeMirrorKeyMapRunQuerySub = _elm_lang$core$Native_Platform.incomingPort(
-	'codeMirrorKeyMapRunQuerySub',
-	_elm_lang$core$Json_Decode$null(
-		{ctor: '_Tuple0'}));
-var _connexity$ksql_web$Main$codeMirrorKeyMapPrevInHistorySub = _elm_lang$core$Native_Platform.incomingPort(
-	'codeMirrorKeyMapPrevInHistorySub',
-	_elm_lang$core$Json_Decode$null(
-		{ctor: '_Tuple0'}));
-var _connexity$ksql_web$Main$codeMirrorKeyMapNextInHistorySub = _elm_lang$core$Native_Platform.incomingPort(
-	'codeMirrorKeyMapNextInHistorySub',
-	_elm_lang$core$Json_Decode$null(
-		{ctor: '_Tuple0'}));
-var _connexity$ksql_web$Main$Flags = F4(
-	function (a, b, c, d) {
-		return {secure: a, host: b, search: c, queryHistory: d};
-	});
-var _connexity$ksql_web$Main$DeterminateProgress = F2(
-	function (a, b) {
-		return {duration: a, currentTime: b};
-	});
-var _connexity$ksql_web$Main$IndeterminateProgress = F2(
-	function (a, b) {
-		return {markerDurations: a, currentTime: b};
-	});
-var _connexity$ksql_web$Main$Query = F3(
-	function (a, b, c) {
-		return {queryHistory: a, currentHistoryIndex: b, editBuffers: c};
-	});
-var _connexity$ksql_web$Main$Table = F2(
-	function (a, b) {
-		return {headerRow: a, dataRows: b};
-	});
-var _connexity$ksql_web$Main$Statistics = F2(
-	function (a, b) {
-		return {statistics: a, errorStats: b};
-	});
-var _connexity$ksql_web$Main$Topic = F3(
-	function (a, b, c) {
-		return {name: a, partitions: b, replication: c};
-	});
-var _connexity$ksql_web$Main$ExtendedSchema = F8(
-	function (a, b, c, d, e, f, g, h) {
-		return {schemaType: a, key: b, timestamp: c, serdes: d, kafkaOutputTopic: e, schema: f, writeQueries: g, statistics: h};
-	});
-var _connexity$ksql_web$Main$ExecutionPlan = F5(
-	function (a, b, c, d, e) {
-		return {statementText: a, statistics: b, kafkaOutputTopic: c, executionPlan: d, topology: e};
-	});
-var _connexity$ksql_web$Main$Model = F6(
-	function (a, b, c, d, e, f) {
-		return {flags: a, state: b, query: c, result: d, notifications: e, errorMessages: f};
-	});
-var _connexity$ksql_web$Main$Streaming = F2(
-	function (a, b) {
-		return {ctor: 'Streaming', _0: a, _1: b};
-	});
-var _connexity$ksql_web$Main$Running = function (a) {
-	return {ctor: 'Running', _0: a};
-};
-var _connexity$ksql_web$Main$Idle = {ctor: 'Idle'};
-var _connexity$ksql_web$Main$Initializing = function (a) {
-	return {ctor: 'Initializing', _0: a};
-};
-var _connexity$ksql_web$Main$JsonColumn = function (a) {
-	return {ctor: 'JsonColumn', _0: a};
-};
-var _connexity$ksql_web$Main$ArrayColumn = function (a) {
-	return {ctor: 'ArrayColumn', _0: a};
-};
-var _connexity$ksql_web$Main$NullColumn = {ctor: 'NullColumn'};
-var _connexity$ksql_web$Main$StringColumn = function (a) {
-	return {ctor: 'StringColumn', _0: a};
-};
-var _connexity$ksql_web$Main$NumericColumn = function (a) {
-	return {ctor: 'NumericColumn', _0: a};
-};
-var _connexity$ksql_web$Main$BoolColumn = function (a) {
-	return {ctor: 'BoolColumn', _0: a};
-};
-var _connexity$ksql_web$Main$ExplainResult = function (a) {
-	return {ctor: 'ExplainResult', _0: a};
-};
-var _connexity$ksql_web$Main$DescribeExtendedResult = function (a) {
-	return {ctor: 'DescribeExtendedResult', _0: a};
-};
-var _connexity$ksql_web$Main$TabularResult = function (a) {
-	return {ctor: 'TabularResult', _0: a};
-};
-var _connexity$ksql_web$Main$StreamingTextualResult = function (a) {
-	return {ctor: 'StreamingTextualResult', _0: a};
-};
-var _connexity$ksql_web$Main$StreamingTabularResult = function (a) {
-	return {ctor: 'StreamingTabularResult', _0: a};
-};
-var _connexity$ksql_web$Main$NoOp = {ctor: 'NoOp'};
-var _connexity$ksql_web$Main$scrollToBottom = A2(
-	_elm_lang$core$Task$attempt,
-	_elm_lang$core$Basics$always(_connexity$ksql_web$Main$NoOp),
-	_elm_lang$dom$Dom_Scroll$toBottom('output'));
-var _connexity$ksql_web$Main$ProgressAddRandomMarker = function (a) {
-	return {ctor: 'ProgressAddRandomMarker', _0: a};
-};
-var _connexity$ksql_web$Main$ProgressTick = function (a) {
-	return {ctor: 'ProgressTick', _0: a};
-};
-var _connexity$ksql_web$Main$SendWebSocketKeepAlive = function (a) {
-	return {ctor: 'SendWebSocketKeepAlive', _0: a};
-};
-var _connexity$ksql_web$Main$WebSocketIncoming = function (a) {
-	return {ctor: 'WebSocketIncoming', _0: a};
-};
-var _connexity$ksql_web$Main$UseNextQueryInHistory = {ctor: 'UseNextQueryInHistory'};
-var _connexity$ksql_web$Main$UsePrevQueryInHistory = {ctor: 'UsePrevQueryInHistory'};
-var _connexity$ksql_web$Main$UpdateQueryHistory = function (a) {
-	return {ctor: 'UpdateQueryHistory', _0: a};
-};
-var _connexity$ksql_web$Main$StopQuery = {ctor: 'StopQuery'};
-var _connexity$ksql_web$Main$PauseQuery = {ctor: 'PauseQuery'};
-var _connexity$ksql_web$Main$RunQuery = {ctor: 'RunQuery'};
-var _connexity$ksql_web$Main$view = function (model) {
+var _connexity$ksql_web$Ksql_View$view = function (model) {
 	return A2(
 		_elm_lang$html$Html$div,
 		{ctor: '[]'},
@@ -11088,7 +12516,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 									_elm_lang$html$Html$button,
 									{
 										ctor: '::',
-										_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$RunQuery),
+										_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Ksql_Common$RunQuery),
 										_1: {
 											ctor: '::',
 											_0: _elm_lang$html$Html_Attributes$title('Run Query (Shift+Enter)'),
@@ -11106,7 +12534,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 										_elm_lang$html$Html$button,
 										{
 											ctor: '::',
-											_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$PauseQuery),
+											_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Ksql_Common$PauseQuery),
 											_1: {
 												ctor: '::',
 												_0: _elm_lang$html$Html_Attributes$title('Pause/Resume Query (Ctrl+Shift+Z)'),
@@ -11124,7 +12552,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 											_elm_lang$html$Html$button,
 											{
 												ctor: '::',
-												_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Main$StopQuery),
+												_0: _elm_lang$html$Html_Events$onClick(_connexity$ksql_web$Ksql_Common$StopQuery),
 												_1: {
 													ctor: '::',
 													_0: _elm_lang$html$Html_Attributes$title('Stop Query (Ctrl+Shift+C)'),
@@ -11145,8 +12573,8 @@ var _connexity$ksql_web$Main$view = function (model) {
 					A2(
 						_elm_lang$core$Basics_ops['++'],
 						function () {
-							var _p9 = _connexity$ksql_web$Main$currentQueryText(model.query);
-							if (_p9 === '') {
+							var _p8 = _connexity$ksql_web$Ksql_Common$currentQueryText(model.query);
+							if (_p8 === '') {
 								return {ctor: '[]'};
 							} else {
 								return {
@@ -11168,7 +12596,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 														A2(
 															_elm_lang$core$Basics_ops['++'],
 															'?query=',
-															_elm_lang$http$Http$encodeUri(_p9))),
+															_elm_lang$http$Http$encodeUri(_p8))),
 													_1: {ctor: '[]'}
 												},
 												{
@@ -11255,20 +12683,20 @@ var _connexity$ksql_web$Main$view = function (model) {
 								{
 									ctor: '::',
 									_0: function () {
-										var _p10 = model.state;
-										switch (_p10.ctor) {
+										var _p9 = model.state;
+										switch (_p9.ctor) {
 											case 'Initializing':
-												return _connexity$ksql_web$Main$progressBarView(
-													Math.pow(_p10._0.duration / (1 * _elm_lang$core$Time$second), 2));
+												return _connexity$ksql_web$Ksql_View$progressBarView(
+													Math.pow(_p9._0.duration / (1 * _elm_lang$core$Time$second), 2));
 											case 'Running':
-												return _connexity$ksql_web$Main$progressBarView(
-													Math.pow(_p10._0.duration / (600 * _elm_lang$core$Time$second), 2.0e-2));
+												return _connexity$ksql_web$Ksql_View$progressBarView(
+													Math.pow(_p9._0.duration / (600 * _elm_lang$core$Time$second), 2.0e-2));
 											case 'Streaming':
-												var _p11 = _p10._1;
-												var extraBarStyles = (_p10._0 || _elm_lang$core$Native_Utils.eq(
+												var _p10 = _p9._1;
+												var extraBarStyles = (_p9._0 || _elm_lang$core$Native_Utils.eq(
 													A2(
 														_elm_lang$core$Basics_ops['%'],
-														(_elm_lang$core$Basics$floor(_p11.currentTime) / _elm_lang$core$Basics$floor(_elm_lang$core$Time$second)) | 0,
+														(_elm_lang$core$Basics$floor(_p10.currentTime) / _elm_lang$core$Basics$floor(_elm_lang$core$Time$second)) | 0,
 														2),
 													0)) ? {ctor: '[]'} : {
 													ctor: '::',
@@ -11313,7 +12741,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 																							_1: A2(
 																								_elm_lang$core$Basics_ops['++'],
 																								_elm_lang$core$Basics$toString(
-																									Math.pow(marker / _connexity$ksql_web$Main$progressMarkerLife, 2) * 100),
+																									Math.pow(marker / _connexity$ksql_web$Ksql_Common$progressMarkerLife, 2) * 100),
 																								'%')
 																						},
 																						_1: {
@@ -11324,7 +12752,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 																								_1: A2(
 																									_elm_lang$core$Basics_ops['++'],
 																									_elm_lang$core$Basics$toString(
-																										Math.pow(marker / _connexity$ksql_web$Main$progressMarkerLife, 2) * 40),
+																										Math.pow(marker / _connexity$ksql_web$Ksql_Common$progressMarkerLife, 2) * 40),
 																									'px')
 																							},
 																							_1: {ctor: '[]'}
@@ -11338,9 +12766,9 @@ var _connexity$ksql_web$Main$view = function (model) {
 																};
 															}),
 														{ctor: '[]'},
-														_p11.markerDurations));
+														_p10.markerDurations));
 											default:
-												return _connexity$ksql_web$Main$progressBarView(1.0);
+												return _connexity$ksql_web$Ksql_View$progressBarView(1.0);
 										}
 									}(),
 									_1: {ctor: '[]'}
@@ -11360,9 +12788,9 @@ var _connexity$ksql_web$Main$view = function (model) {
 						A2(
 							_elm_lang$core$Basics_ops['++'],
 							function () {
-								var _p12 = model.result;
-								if (_p12.ctor === 'Just') {
-									switch (_p12._0.ctor) {
+								var _p11 = model.result;
+								if (_p11.ctor === 'Just') {
+									switch (_p11._0.ctor) {
 										case 'StreamingTabularResult':
 											return {
 												ctor: '::',
@@ -11379,12 +12807,12 @@ var _connexity$ksql_web$Main$view = function (model) {
 															function (row, rowViews) {
 																return {
 																	ctor: '::',
-																	_0: A2(_connexity$ksql_web$Main$rowView, false, row),
+																	_0: A2(_connexity$ksql_web$Ksql_View$rowView, false, row),
 																	_1: rowViews
 																};
 															}),
 														{ctor: '[]'},
-														_connexity$ksql_web$Stream$items(_p12._0._0))),
+														_connexity$ksql_web$Stream$items(_p11._0._0))),
 												_1: {ctor: '[]'}
 											};
 										case 'TabularResult':
@@ -11399,39 +12827,39 @@ var _connexity$ksql_web$Main$view = function (model) {
 													},
 													{
 														ctor: '::',
-														_0: A2(_connexity$ksql_web$Main$rowView, true, _p12._0._0.headerRow),
+														_0: A2(_connexity$ksql_web$Ksql_View$rowView, true, _p11._0._0.headerRow),
 														_1: A3(
 															_elm_lang$core$List$foldl,
 															F2(
 																function (row, rowViews) {
 																	return {
 																		ctor: '::',
-																		_0: A2(_connexity$ksql_web$Main$rowView, false, row),
+																		_0: A2(_connexity$ksql_web$Ksql_View$rowView, false, row),
 																		_1: rowViews
 																	};
 																}),
 															{ctor: '[]'},
-															_p12._0._0.dataRows)
+															_p11._0._0.dataRows)
 													}),
 												_1: {ctor: '[]'}
 											};
 										case 'DescribeExtendedResult':
-											var _p13 = _p12._0._0;
+											var _p12 = _p11._0._0;
 											return {
 												ctor: '::',
-												_0: _connexity$ksql_web$Main$metadataTableView(
+												_0: _connexity$ksql_web$Ksql_View$metadataTableView(
 													{
 														ctor: '::',
-														_0: {ctor: '_Tuple2', _0: 'Type', _1: _p13.schemaType},
+														_0: {ctor: '_Tuple2', _0: 'Type', _1: _p12.schemaType},
 														_1: {
 															ctor: '::',
-															_0: {ctor: '_Tuple2', _0: 'Key field', _1: _p13.key},
+															_0: {ctor: '_Tuple2', _0: 'Key field', _1: _p12.key},
 															_1: {
 																ctor: '::',
 																_0: {
 																	ctor: '_Tuple2',
 																	_0: 'Timestamp field',
-																	_1: _elm_lang$core$String$isEmpty(_p13.timestamp) ? 'Not set - using <ROWTIME>' : _p13.timestamp
+																	_1: _elm_lang$core$String$isEmpty(_p12.timestamp) ? 'Not set - using <ROWTIME>' : _p12.timestamp
 																},
 																_1: {
 																	ctor: '::',
@@ -11441,11 +12869,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 																		_1: A2(
 																			_elm_lang$core$Maybe$withDefault,
 																			'',
-																			_connexity$ksql_web$Main$rowKeyType(_p13.schema))
+																			_connexity$ksql_web$Ksql_View$rowKeyType(_p12.schema))
 																	},
 																	_1: {
 																		ctor: '::',
-																		_0: {ctor: '_Tuple2', _0: 'Value format', _1: _p13.serdes},
+																		_0: {ctor: '_Tuple2', _0: 'Value format', _1: _p12.serdes},
 																		_1: {
 																			ctor: '::',
 																			_0: {
@@ -11453,19 +12881,19 @@ var _connexity$ksql_web$Main$view = function (model) {
 																				_0: 'Kafka output topic',
 																				_1: A2(
 																					_elm_lang$core$Basics_ops['++'],
-																					_p13.kafkaOutputTopic.name,
+																					_p12.kafkaOutputTopic.name,
 																					A2(
 																						_elm_lang$core$Basics_ops['++'],
 																						' (partitions: ',
 																						A2(
 																							_elm_lang$core$Basics_ops['++'],
-																							_elm_lang$core$Basics$toString(_p13.kafkaOutputTopic.partitions),
+																							_elm_lang$core$Basics$toString(_p12.kafkaOutputTopic.partitions),
 																							A2(
 																								_elm_lang$core$Basics_ops['++'],
 																								', replication: ',
 																								A2(
 																									_elm_lang$core$Basics_ops['++'],
-																									_elm_lang$core$Basics$toString(_p13.kafkaOutputTopic.replication),
+																									_elm_lang$core$Basics$toString(_p12.kafkaOutputTopic.replication),
 																									')')))))
 																			},
 																			_1: {ctor: '[]'}
@@ -11493,25 +12921,25 @@ var _connexity$ksql_web$Main$view = function (model) {
 															{
 																ctor: '::',
 																_0: A2(
-																	_connexity$ksql_web$Main$rowView,
+																	_connexity$ksql_web$Ksql_View$rowView,
 																	true,
 																	{
 																		ctor: '::',
-																		_0: _connexity$ksql_web$Main$StringColumn('Field'),
+																		_0: _connexity$ksql_web$Ksql_Common$StringColumn('Field'),
 																		_1: {
 																			ctor: '::',
-																			_0: _connexity$ksql_web$Main$StringColumn('Type'),
+																			_0: _connexity$ksql_web$Ksql_Common$StringColumn('Type'),
 																			_1: {ctor: '[]'}
 																		}
 																	}),
 																_1: A2(
 																	_elm_lang$core$List$map,
-																	_connexity$ksql_web$Main$rowView(false),
-																	_p13.schema)
+																	_connexity$ksql_web$Ksql_View$rowView(false),
+																	_p12.schema)
 															}),
 														_1: A2(
 															_elm_lang$core$Basics_ops['++'],
-															_elm_lang$core$List$isEmpty(_p13.writeQueries) ? {ctor: '[]'} : {
+															_elm_lang$core$List$isEmpty(_p12.writeQueries) ? {ctor: '[]'} : {
 																ctor: '::',
 																_0: A2(
 																	_elm_lang$html$Html$h3,
@@ -11519,10 +12947,10 @@ var _connexity$ksql_web$Main$view = function (model) {
 																	{
 																		ctor: '::',
 																		_0: _elm_lang$html$Html$text(
-																			A2(_elm_lang$core$Basics_ops['++'], 'Queries that write into this ', _p13.schemaType)),
+																			A2(_elm_lang$core$Basics_ops['++'], 'Queries that write into this ', _p12.schemaType)),
 																		_1: {ctor: '[]'}
 																	}),
-																_1: A2(_connexity$ksql_web$Main$messagesView, _elm_lang$core$Maybe$Nothing, _p13.writeQueries)
+																_1: A2(_connexity$ksql_web$Ksql_View$messagesView, _elm_lang$core$Maybe$Nothing, _p12.writeQueries)
 															},
 															A2(
 																_elm_lang$core$Basics_ops['++'],
@@ -11555,21 +12983,21 @@ var _connexity$ksql_web$Main$view = function (model) {
 																	A2(
 																		_elm_lang$core$Basics_ops['++'],
 																		A2(
-																			_connexity$ksql_web$Main$messagesView,
+																			_connexity$ksql_web$Ksql_View$messagesView,
 																			_elm_lang$core$Maybe$Nothing,
 																			{
 																				ctor: '::',
-																				_0: _p13.statistics.statistics,
+																				_0: _p12.statistics.statistics,
 																				_1: {ctor: '[]'}
 																			}),
 																		A2(
 																			_elm_lang$core$Basics_ops['++'],
 																			A2(
-																				_connexity$ksql_web$Main$messagesView,
+																				_connexity$ksql_web$Ksql_View$messagesView,
 																				_elm_lang$core$Maybe$Nothing,
 																				{
 																					ctor: '::',
-																					_0: _p13.statistics.errorStats,
+																					_0: _p12.statistics.errorStats,
 																					_1: {ctor: '[]'}
 																				}),
 																			{
@@ -11583,7 +13011,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 																							A2(
 																								_elm_lang$core$Basics_ops['++'],
 																								'(Statistics of the local KSQL server interaction with the Kafka topic ',
-																								A2(_elm_lang$core$Basics_ops['++'], _p13.kafkaOutputTopic.name, ')'))),
+																								A2(_elm_lang$core$Basics_ops['++'], _p12.kafkaOutputTopic.name, ')'))),
 																						_1: {ctor: '[]'}
 																					}),
 																				_1: {ctor: '[]'}
@@ -11592,16 +13020,16 @@ var _connexity$ksql_web$Main$view = function (model) {
 												}
 											};
 										case 'ExplainResult':
-											var _p14 = _p12._0._0;
+											var _p13 = _p11._0._0;
 											return {
 												ctor: '::',
-												_0: _connexity$ksql_web$Main$metadataTableView(
+												_0: _connexity$ksql_web$Ksql_View$metadataTableView(
 													{
 														ctor: '::',
 														_0: {ctor: '_Tuple2', _0: 'Type', _1: 'QUERY'},
-														_1: _elm_lang$core$String$isEmpty(_p14.statementText) ? {ctor: '[]'} : {
+														_1: _elm_lang$core$String$isEmpty(_p13.statementText) ? {ctor: '[]'} : {
 															ctor: '::',
-															_0: {ctor: '_Tuple2', _0: 'SQL', _1: _p14.statementText},
+															_0: {ctor: '_Tuple2', _0: 'SQL', _1: _p13.statementText},
 															_1: {ctor: '[]'}
 														}
 													}),
@@ -11622,21 +13050,21 @@ var _connexity$ksql_web$Main$view = function (model) {
 													A2(
 														_elm_lang$core$Basics_ops['++'],
 														A2(
-															_connexity$ksql_web$Main$messagesView,
+															_connexity$ksql_web$Ksql_View$messagesView,
 															_elm_lang$core$Maybe$Nothing,
 															{
 																ctor: '::',
-																_0: _p14.statistics.statistics,
+																_0: _p13.statistics.statistics,
 																_1: {ctor: '[]'}
 															}),
 														A2(
 															_elm_lang$core$Basics_ops['++'],
 															A2(
-																_connexity$ksql_web$Main$messagesView,
+																_connexity$ksql_web$Ksql_View$messagesView,
 																_elm_lang$core$Maybe$Nothing,
 																{
 																	ctor: '::',
-																	_0: _p14.statistics.errorStats,
+																	_0: _p13.statistics.errorStats,
 																	_1: {ctor: '[]'}
 																}),
 															A2(
@@ -11652,7 +13080,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 																				A2(
 																					_elm_lang$core$Basics_ops['++'],
 																					'(Statistics of the local KSQL server interaction with the Kafka topic ',
-																					A2(_elm_lang$core$Basics_ops['++'], _p14.kafkaOutputTopic.name, ')'))),
+																					A2(_elm_lang$core$Basics_ops['++'], _p13.kafkaOutputTopic.name, ')'))),
 																			_1: {ctor: '[]'}
 																		}),
 																	_1: {ctor: '[]'}
@@ -11674,11 +13102,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 																	A2(
 																		_elm_lang$core$Basics_ops['++'],
 																		A2(
-																			_connexity$ksql_web$Main$messagesView,
+																			_connexity$ksql_web$Ksql_View$messagesView,
 																			_elm_lang$core$Maybe$Nothing,
 																			{
 																				ctor: '::',
-																				_0: _p14.executionPlan,
+																				_0: _p13.executionPlan,
 																				_1: {ctor: '[]'}
 																			}),
 																		A2(
@@ -11696,11 +13124,11 @@ var _connexity$ksql_web$Main$view = function (model) {
 																				_1: {ctor: '[]'}
 																			},
 																			A2(
-																				_connexity$ksql_web$Main$messagesView,
+																				_connexity$ksql_web$Ksql_View$messagesView,
 																				_elm_lang$core$Maybe$Nothing,
 																				{
 																					ctor: '::',
-																					_0: _p14.topology,
+																					_0: _p13.topology,
 																					_1: {ctor: '[]'}
 																				}))))))))
 											};
@@ -11732,7 +13160,7 @@ var _connexity$ksql_web$Main$view = function (model) {
 																};
 															}),
 														{ctor: '[]'},
-														_connexity$ksql_web$Stream$items(_p12._0._0))),
+														_connexity$ksql_web$Stream$items(_p11._0._0))),
 												_1: {ctor: '[]'}
 											};
 									}
@@ -11742,9 +13170,9 @@ var _connexity$ksql_web$Main$view = function (model) {
 							}(),
 							A2(
 								_elm_lang$core$Basics_ops['++'],
-								A2(_connexity$ksql_web$Main$messagesView, _elm_lang$core$Maybe$Nothing, model.notifications),
+								A2(_connexity$ksql_web$Ksql_View$messagesView, _elm_lang$core$Maybe$Nothing, model.notifications),
 								A2(
-									_connexity$ksql_web$Main$messagesView,
+									_connexity$ksql_web$Ksql_View$messagesView,
 									_elm_lang$core$Maybe$Just('error'),
 									model.errorMessages)))),
 					_1: {ctor: '[]'}
@@ -11752,1431 +13180,9 @@ var _connexity$ksql_web$Main$view = function (model) {
 			}
 		});
 };
-var _connexity$ksql_web$Main$ChangeQuery = function (a) {
-	return {ctor: 'ChangeQuery', _0: a};
-};
-var _connexity$ksql_web$Main$subscriptions = function (model) {
-	return _elm_lang$core$Platform_Sub$batch(
-		{
-			ctor: '::',
-			_0: _connexity$ksql_web$Main$localStorageGetQueryHistorySub(_connexity$ksql_web$Main$UpdateQueryHistory),
-			_1: {
-				ctor: '::',
-				_0: _connexity$ksql_web$Main$codeMirrorDocValueChangedSub(_connexity$ksql_web$Main$ChangeQuery),
-				_1: {
-					ctor: '::',
-					_0: _connexity$ksql_web$Main$codeMirrorKeyMapRunQuerySub(
-						_elm_lang$core$Basics$always(_connexity$ksql_web$Main$RunQuery)),
-					_1: {
-						ctor: '::',
-						_0: _connexity$ksql_web$Main$codeMirrorKeyMapPrevInHistorySub(
-							_elm_lang$core$Basics$always(_connexity$ksql_web$Main$UsePrevQueryInHistory)),
-						_1: {
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$codeMirrorKeyMapNextInHistorySub(
-								_elm_lang$core$Basics$always(_connexity$ksql_web$Main$UseNextQueryInHistory)),
-							_1: {
-								ctor: '::',
-								_0: _elm_lang$keyboard$Keyboard$presses(
-									function (code) {
-										var _p15 = code;
-										switch (_p15) {
-											case 3:
-												return _connexity$ksql_web$Main$StopQuery;
-											case 26:
-												return _connexity$ksql_web$Main$PauseQuery;
-											default:
-												return _connexity$ksql_web$Main$NoOp;
-										}
-									}),
-								_1: {
-									ctor: '::',
-									_0: A2(_elm_lang$core$Time$every, 60 * _elm_lang$core$Time$second, _connexity$ksql_web$Main$SendWebSocketKeepAlive),
-									_1: {
-										ctor: '::',
-										_0: A2(
-											_elm_lang$websocket$WebSocket$listen,
-											_connexity$ksql_web$Main$webSocketUrl(model.flags),
-											_connexity$ksql_web$Main$WebSocketIncoming),
-										_1: {
-											ctor: '::',
-											_0: function () {
-												var _p16 = model.state;
-												if (_p16.ctor === 'Idle') {
-													return _elm_lang$core$Platform_Sub$none;
-												} else {
-													return A2(_elm_lang$core$Time$every, _connexity$ksql_web$Main$progressTickPeriod, _connexity$ksql_web$Main$ProgressTick);
-												}
-											}(),
-											_1: {ctor: '[]'}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		});
-};
-var _connexity$ksql_web$Main$PerformInTimedState = F2(
-	function (a, b) {
-		return {ctor: 'PerformInTimedState', _0: a, _1: b};
-	});
-var _connexity$ksql_web$Main$init = function (flags) {
-	return {
-		ctor: '_Tuple2',
-		_0: A6(
-			_connexity$ksql_web$Main$Model,
-			flags,
-			_connexity$ksql_web$Main$Idle,
-			A3(
-				_connexity$ksql_web$Main$Query,
-				flags.queryHistory,
-				-1,
-				A2(_elm_lang$core$Dict$singleton, -1, '')),
-			_elm_lang$core$Maybe$Nothing,
-			{ctor: '[]'},
-			{ctor: '[]'}),
-		_1: _elm_lang$core$Platform_Cmd$batch(
-			{
-				ctor: '::',
-				_0: A2(
-					_elm_lang$core$Task$perform,
-					function (_p17) {
-						return A2(
-							_connexity$ksql_web$Main$PerformInTimedState,
-							function () {
-								var _p18 = {
-									ctor: '_Tuple2',
-									_0: _connexity$ksql_web$Main$runOnInit(flags.search),
-									_1: _connexity$ksql_web$Main$queryTextFromSearch(flags.search)
-								};
-								if (((_p18.ctor === '_Tuple2') && (_p18._0 === true)) && (_p18._1.ctor === 'Just')) {
-									return A2(_connexity$ksql_web$Main$sendQuery, flags, _p18._1._0);
-								} else {
-									return _elm_lang$core$Platform_Cmd$none;
-								}
-							}(),
-							_connexity$ksql_web$Main$Initializing(
-								A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p17)));
-					},
-					_elm_lang$core$Time$now),
-				_1: {
-					ctor: '::',
-					_0: function () {
-						var value = A2(
-							_elm_lang$core$Maybe$withDefault,
-							'',
-							_connexity$ksql_web$Main$queryTextFromSearch(flags.search));
-						return _connexity$ksql_web$Main$codeMirrorDocSetValueCursorCmd(
-							{
-								value: value,
-								cursor: {
-									line: _elm_lang$core$List$length(
-										_elm_lang$core$String$lines(value)),
-									ch: 0
-								}
-							});
-					}(),
-					_1: {
-						ctor: '::',
-						_0: _connexity$ksql_web$Main$codeMirrorFromTextAreaCmd('source'),
-						_1: {ctor: '[]'}
-					}
-				}
-			})
-	};
-};
-var _connexity$ksql_web$Main$ErrorMessageResponse = function (a) {
-	return {ctor: 'ErrorMessageResponse', _0: a};
-};
-var _connexity$ksql_web$Main$TableAndNotificationMessageResponse = F2(
-	function (a, b) {
-		return {ctor: 'TableAndNotificationMessageResponse', _0: a, _1: b};
-	});
-var _connexity$ksql_web$Main$NotificationMessageResponse = function (a) {
-	return {ctor: 'NotificationMessageResponse', _0: a};
-};
-var _connexity$ksql_web$Main$ExplainResponse = function (a) {
-	return {ctor: 'ExplainResponse', _0: a};
-};
-var _connexity$ksql_web$Main$DescribeExtendedResponse = function (a) {
-	return {ctor: 'DescribeExtendedResponse', _0: a};
-};
-var _connexity$ksql_web$Main$TableResponse = function (a) {
-	return {ctor: 'TableResponse', _0: a};
-};
-var _connexity$ksql_web$Main$StreamedTextResponse = function (a) {
-	return {ctor: 'StreamedTextResponse', _0: a};
-};
-var _connexity$ksql_web$Main$StreamedRowResponse = function (a) {
-	return {ctor: 'StreamedRowResponse', _0: a};
-};
-var _connexity$ksql_web$Main$MetaRawContentFollows = function (a) {
-	return {ctor: 'MetaRawContentFollows', _0: a};
-};
-var _connexity$ksql_web$Main$MetaConnected = {ctor: 'MetaConnected'};
-var _connexity$ksql_web$Main$responseDecoder = function () {
-	var errorMessageRespDecoder = function () {
-		var errorMessageObjectDecoder = A2(
-			_elm_lang$core$Json_Decode$at,
-			{
-				ctor: '::',
-				_0: 'error',
-				_1: {
-					ctor: '::',
-					_0: 'errorMessage',
-					_1: {
-						ctor: '::',
-						_0: 'message',
-						_1: {ctor: '[]'}
-					}
-				}
-			},
-			_elm_lang$core$Json_Decode$string);
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ErrorMessageResponse, errorMessageObjectDecoder);
-	}();
-	var notificationRespDecoder = function () {
-		var notificationObjectDecoder = A2(
-			_elm_lang$core$Json_Decode$at,
-			{
-				ctor: '::',
-				_0: 'errorMessage',
-				_1: {
-					ctor: '::',
-					_0: 'message',
-					_1: {ctor: '[]'}
-				}
-			},
-			_elm_lang$core$Json_Decode$string);
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$NotificationMessageResponse, notificationObjectDecoder);
-	}();
-	var rawContentDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$StreamedTextResponse, _elm_lang$core$Json_Decode$string);
-	var curStatusDecoder = function () {
-		var currentStatusObjectDecoder = A3(
-			_elm_lang$core$Json_Decode$map2,
-			F2(
-				function (status, message) {
-					return {
-						ctor: '_Tuple2',
-						_0: _elm_lang$core$Native_Utils.eq(status, 'SUCCESS'),
-						_1: message
-					};
-				}),
-			A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'currentStatus',
-					_1: {
-						ctor: '::',
-						_0: 'commandStatus',
-						_1: {
-							ctor: '::',
-							_0: 'status',
-							_1: {ctor: '[]'}
-						}
-					}
-				},
-				_elm_lang$core$Json_Decode$string),
-			A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'currentStatus',
-					_1: {
-						ctor: '::',
-						_0: 'commandStatus',
-						_1: {
-							ctor: '::',
-							_0: 'message',
-							_1: {ctor: '[]'}
-						}
-					}
-				},
-				_elm_lang$core$Json_Decode$string));
-		return A2(
-			_elm_lang$core$Json_Decode$map,
-			function (_p19) {
-				var _p20 = _p19;
-				var _p21 = _p20._1;
-				return _p20._0 ? _connexity$ksql_web$Main$NotificationMessageResponse(_p21) : _connexity$ksql_web$Main$ErrorMessageResponse(_p21);
-			},
-			currentStatusObjectDecoder);
-	}();
-	var columnDecoder = function () {
-		var jsonColumnDecoder = A2(
-			_elm_lang$core$Json_Decode$map,
-			_connexity$ksql_web$Main$JsonColumn,
-			_elm_lang$core$Json_Decode$keyValuePairs(
-				_elm_lang$core$Json_Decode$lazy(
-					function (_p22) {
-						return columnDecoder;
-					})));
-		var arrayColumnDecoder = A2(
-			_elm_lang$core$Json_Decode$map,
-			_connexity$ksql_web$Main$ArrayColumn,
-			_elm_lang$core$Json_Decode$list(
-				_elm_lang$core$Json_Decode$lazy(
-					function (_p23) {
-						return columnDecoder;
-					})));
-		var nullColumnDecoder = _elm_lang$core$Json_Decode$null(_connexity$ksql_web$Main$NullColumn);
-		var stringColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$StringColumn, _elm_lang$core$Json_Decode$string);
-		var intColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$NumericColumn, _elm_lang$core$Json_Decode$float);
-		var boolColumnDecoder = A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$BoolColumn, _elm_lang$core$Json_Decode$bool);
-		return _elm_lang$core$Json_Decode$oneOf(
-			{
-				ctor: '::',
-				_0: boolColumnDecoder,
-				_1: {
-					ctor: '::',
-					_0: intColumnDecoder,
-					_1: {
-						ctor: '::',
-						_0: stringColumnDecoder,
-						_1: {
-							ctor: '::',
-							_0: nullColumnDecoder,
-							_1: {
-								ctor: '::',
-								_0: arrayColumnDecoder,
-								_1: {
-									ctor: '::',
-									_0: jsonColumnDecoder,
-									_1: {ctor: '[]'}
-								}
-							}
-						}
-					}
-				}
-			});
-	}();
-	var rowRespDecoder = function () {
-		var rowObjectDecoder = A2(
-			_elm_lang$core$Json_Decode$at,
-			{
-				ctor: '::',
-				_0: 'row',
-				_1: {
-					ctor: '::',
-					_0: 'columns',
-					_1: {ctor: '[]'}
-				}
-			},
-			_elm_lang$core$Json_Decode$list(columnDecoder));
-		return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$StreamedRowResponse, rowObjectDecoder);
-	}();
-	var propertiesRespDecoder = function () {
-		var propertiesObjectDecoder = A2(
-			_elm_lang$core$Json_Decode$map,
-			function (kvPairs) {
-				return A2(
-					_elm_lang$core$List$map,
-					function (_p24) {
-						var _p25 = _p24;
-						return {
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn(_p25._0),
-							_1: {
-								ctor: '::',
-								_0: _p25._1,
-								_1: {ctor: '[]'}
-							}
-						};
-					},
-					kvPairs);
-			},
-			A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'properties',
-					_1: {
-						ctor: '::',
-						_0: 'properties',
-						_1: {ctor: '[]'}
-					}
-				},
-				_elm_lang$core$Json_Decode$keyValuePairs(columnDecoder)));
-		return A2(
-			_elm_lang$core$Json_Decode$map,
-			function (_p26) {
-				return _connexity$ksql_web$Main$TableResponse(
-					A2(
-						_connexity$ksql_web$Main$Table,
-						{
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn('Property'),
-							_1: {
-								ctor: '::',
-								_0: _connexity$ksql_web$Main$StringColumn('Value'),
-								_1: {ctor: '[]'}
-							}
-						},
-						_p26));
-			},
-			propertiesObjectDecoder);
-	}();
-	var queriesRespDecoder = function () {
-		var queriesObjectDecoder = function () {
-			var entryDecoder = A4(
-				_elm_lang$core$Json_Decode$map3,
-				F3(
-					function (id, kafkaTopic, queryString) {
-						return {
-							ctor: '::',
-							_0: id,
-							_1: {
-								ctor: '::',
-								_0: kafkaTopic,
-								_1: {
-									ctor: '::',
-									_0: queryString,
-									_1: {ctor: '[]'}
-								}
-							}
-						};
-					}),
-				A2(
-					_elm_lang$core$Json_Decode$at,
-					{
-						ctor: '::',
-						_0: 'id',
-						_1: {
-							ctor: '::',
-							_0: 'id',
-							_1: {ctor: '[]'}
-						}
-					},
-					columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'queryString', columnDecoder));
-			return A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'queries',
-					_1: {
-						ctor: '::',
-						_0: 'queries',
-						_1: {ctor: '[]'}
-					}
-				},
-				_elm_lang$core$Json_Decode$list(entryDecoder));
-		}();
-		return A2(
-			_elm_lang$core$Json_Decode$map,
-			function (_p27) {
-				return A3(
-					_elm_lang$core$Basics$flip,
-					_connexity$ksql_web$Main$TableAndNotificationMessageResponse,
-					'For detailed information on a Query run: EXPLAIN <Query ID>;',
-					A2(
-						_connexity$ksql_web$Main$Table,
-						{
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn('Query ID'),
-							_1: {
-								ctor: '::',
-								_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-								_1: {
-									ctor: '::',
-									_0: _connexity$ksql_web$Main$StringColumn('Query String'),
-									_1: {ctor: '[]'}
-								}
-							}
-						},
-						_elm_lang$core$List$reverse(_p27)));
-			},
-			queriesObjectDecoder);
-	}();
-	var streamsRespDecoder = function () {
-		var streamsObjectDecoder = function () {
-			var entryDecoder = A4(
-				_elm_lang$core$Json_Decode$map3,
-				F3(
-					function (name, topic, format) {
-						return {
-							ctor: '::',
-							_0: name,
-							_1: {
-								ctor: '::',
-								_0: topic,
-								_1: {
-									ctor: '::',
-									_0: format,
-									_1: {ctor: '[]'}
-								}
-							}
-						};
-					}),
-				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'topic', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'format', columnDecoder));
-			return A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'streams',
-					_1: {
-						ctor: '::',
-						_0: 'streams',
-						_1: {ctor: '[]'}
-					}
-				},
-				_elm_lang$core$Json_Decode$list(entryDecoder));
-		}();
-		return A2(
-			_elm_lang$core$Json_Decode$map,
-			function (_p28) {
-				return _connexity$ksql_web$Main$TableResponse(
-					A2(
-						_connexity$ksql_web$Main$Table,
-						{
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
-							_1: {
-								ctor: '::',
-								_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-								_1: {
-									ctor: '::',
-									_0: _connexity$ksql_web$Main$StringColumn('Format'),
-									_1: {ctor: '[]'}
-								}
-							}
-						},
-						_elm_lang$core$List$reverse(_p28)));
-			},
-			streamsObjectDecoder);
-	}();
-	var tablesRespDecoder = function () {
-		var tablesObjectDecoder = function () {
-			var entryDecoder = A5(
-				_elm_lang$core$Json_Decode$map4,
-				F4(
-					function (name, topic, format, windowed) {
-						return {
-							ctor: '::',
-							_0: name,
-							_1: {
-								ctor: '::',
-								_0: topic,
-								_1: {
-									ctor: '::',
-									_0: format,
-									_1: {
-										ctor: '::',
-										_0: windowed,
-										_1: {ctor: '[]'}
-									}
-								}
-							}
-						};
-					}),
-				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'topic', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'format', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'isWindowed', columnDecoder));
-			return A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'tables',
-					_1: {
-						ctor: '::',
-						_0: 'tables',
-						_1: {ctor: '[]'}
-					}
-				},
-				_elm_lang$core$Json_Decode$list(entryDecoder));
-		}();
-		return A2(
-			_elm_lang$core$Json_Decode$map,
-			function (_p29) {
-				return _connexity$ksql_web$Main$TableResponse(
-					A2(
-						_connexity$ksql_web$Main$Table,
-						{
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn('Stream Name'),
-							_1: {
-								ctor: '::',
-								_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-								_1: {
-									ctor: '::',
-									_0: _connexity$ksql_web$Main$StringColumn('Format'),
-									_1: {
-										ctor: '::',
-										_0: _connexity$ksql_web$Main$StringColumn('Windowed'),
-										_1: {ctor: '[]'}
-									}
-								}
-							}
-						},
-						_elm_lang$core$List$reverse(_p29)));
-			},
-			tablesObjectDecoder);
-	}();
-	var topicsRespDecoder = function () {
-		var topicsObjectDecoder = function () {
-			var entryDecoder = A7(
-				_elm_lang$core$Json_Decode$map6,
-				F6(
-					function (name, registered, parts, partsReplica, consumers, consumerGroups) {
-						return {
-							ctor: '::',
-							_0: name,
-							_1: {
-								ctor: '::',
-								_0: registered,
-								_1: {
-									ctor: '::',
-									_0: parts,
-									_1: {
-										ctor: '::',
-										_0: partsReplica,
-										_1: {
-											ctor: '::',
-											_0: consumers,
-											_1: {
-												ctor: '::',
-												_0: consumerGroups,
-												_1: {ctor: '[]'}
-											}
-										}
-									}
-								}
-							}
-						};
-					}),
-				A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'registered', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'partitionCount', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'replicaInfo', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'consumerCount', columnDecoder),
-				A2(_elm_lang$core$Json_Decode$field, 'consumerGroupCount', columnDecoder));
-			return A2(
-				_elm_lang$core$Json_Decode$at,
-				{
-					ctor: '::',
-					_0: 'kafka_topics',
-					_1: {
-						ctor: '::',
-						_0: 'topics',
-						_1: {ctor: '[]'}
-					}
-				},
-				_elm_lang$core$Json_Decode$list(entryDecoder));
-		}();
-		return A2(
-			_elm_lang$core$Json_Decode$map,
-			function (_p30) {
-				return _connexity$ksql_web$Main$TableResponse(
-					A2(
-						_connexity$ksql_web$Main$Table,
-						{
-							ctor: '::',
-							_0: _connexity$ksql_web$Main$StringColumn('Kafka Topic'),
-							_1: {
-								ctor: '::',
-								_0: _connexity$ksql_web$Main$StringColumn('Registered'),
-								_1: {
-									ctor: '::',
-									_0: _connexity$ksql_web$Main$StringColumn('Partitions'),
-									_1: {
-										ctor: '::',
-										_0: _connexity$ksql_web$Main$StringColumn('Partition Replicas'),
-										_1: {
-											ctor: '::',
-											_0: _connexity$ksql_web$Main$StringColumn('Consumers'),
-											_1: {
-												ctor: '::',
-												_0: _connexity$ksql_web$Main$StringColumn('Consumer Groups'),
-												_1: {ctor: '[]'}
-											}
-										}
-									}
-								}
-							}
-						},
-						_elm_lang$core$List$reverse(_p30)));
-			},
-			topicsObjectDecoder);
-	}();
-	var descrRespDecoder = function () {
-		var descrObjectTopicDecoder = A4(
-			_elm_lang$core$Json_Decode$map3,
-			_connexity$ksql_web$Main$Topic,
-			A2(_elm_lang$core$Json_Decode$field, 'kafkaTopic', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'partitions', _elm_lang$core$Json_Decode$int),
-			A2(_elm_lang$core$Json_Decode$field, 'replication', _elm_lang$core$Json_Decode$int));
-		var descrObjectStatsDecoder = A3(
-			_elm_lang$core$Json_Decode$map2,
-			_connexity$ksql_web$Main$Statistics,
-			A2(_elm_lang$core$Json_Decode$field, 'statistics', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'errorStats', _elm_lang$core$Json_Decode$string));
-		var descrObjectExplainDecoder = A6(
-			_elm_lang$core$Json_Decode$map5,
-			_connexity$ksql_web$Main$ExecutionPlan,
-			A2(_elm_lang$core$Json_Decode$field, 'statementText', _elm_lang$core$Json_Decode$string),
-			descrObjectStatsDecoder,
-			descrObjectTopicDecoder,
-			A2(_elm_lang$core$Json_Decode$field, 'executionPlan', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'topology', _elm_lang$core$Json_Decode$string));
-		var descrObjectTypeDecoder = A3(
-			_elm_lang$core$Json_Decode$map2,
-			_elm_lang$core$Basics$curry(_elm_lang$core$Basics$identity),
-			A2(_elm_lang$core$Json_Decode$field, 'type', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'extended', _elm_lang$core$Json_Decode$bool));
-		var entryDecoder = A3(
-			_elm_lang$core$Json_Decode$map2,
-			F2(
-				function (name, typename) {
-					return {
-						ctor: '::',
-						_0: name,
-						_1: {
-							ctor: '::',
-							_0: typename,
-							_1: {ctor: '[]'}
-						}
-					};
-				}),
-			A2(_elm_lang$core$Json_Decode$field, 'name', columnDecoder),
-			A2(_elm_lang$core$Json_Decode$field, 'type', columnDecoder));
-		var descrObjectBasicSchemaDecoder = A2(
-			_elm_lang$core$Json_Decode$field,
-			'schema',
-			_elm_lang$core$Json_Decode$list(entryDecoder));
-		var descrObjectExtendedSchemaDecoder = A9(
-			_elm_lang$core$Json_Decode$map8,
-			_connexity$ksql_web$Main$ExtendedSchema,
-			A2(_elm_lang$core$Json_Decode$field, 'type', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'key', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'timestamp', _elm_lang$core$Json_Decode$string),
-			A2(_elm_lang$core$Json_Decode$field, 'serdes', _elm_lang$core$Json_Decode$string),
-			descrObjectTopicDecoder,
-			A2(
-				_elm_lang$core$Json_Decode$field,
-				'schema',
-				_elm_lang$core$Json_Decode$list(entryDecoder)),
-			A2(
-				_elm_lang$core$Json_Decode$field,
-				'writeQueries',
-				_elm_lang$core$Json_Decode$list(_elm_lang$core$Json_Decode$string)),
-			descrObjectStatsDecoder);
-		return A2(
-			_elm_lang$core$Json_Decode$field,
-			'description',
-			A2(
-				_elm_lang$core$Json_Decode$andThen,
-				function (_p31) {
-					var _p32 = _p31;
-					var _p33 = {ctor: '_Tuple2', _0: _p32._0, _1: _p32._1};
-					_v17_0:
-					do {
-						if (_p33._1 === false) {
-							if (_p33._0 === 'QUERY') {
-								break _v17_0;
-							} else {
-								return A2(
-									_elm_lang$core$Json_Decode$map,
-									function (_p34) {
-										return A3(
-											_elm_lang$core$Basics$flip,
-											_connexity$ksql_web$Main$TableAndNotificationMessageResponse,
-											'For runtime statistics and query details run: DESCRIBE EXTENDED <Stream,Table>;',
-											A2(
-												_connexity$ksql_web$Main$Table,
-												{
-													ctor: '::',
-													_0: _connexity$ksql_web$Main$StringColumn('Field'),
-													_1: {
-														ctor: '::',
-														_0: _connexity$ksql_web$Main$StringColumn('Type'),
-														_1: {ctor: '[]'}
-													}
-												},
-												_elm_lang$core$List$reverse(_p34)));
-									},
-									descrObjectBasicSchemaDecoder);
-							}
-						} else {
-							if (_p33._0 === 'QUERY') {
-								break _v17_0;
-							} else {
-								return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$DescribeExtendedResponse, descrObjectExtendedSchemaDecoder);
-							}
-						}
-					} while(false);
-					return A2(_elm_lang$core$Json_Decode$map, _connexity$ksql_web$Main$ExplainResponse, descrObjectExplainDecoder);
-				},
-				descrObjectTypeDecoder));
-	}();
-	var ksqlWebRespDecoder = A2(
-		_elm_lang$core$Json_Decode$field,
-		'ksqlWeb',
-		A2(
-			_elm_lang$core$Json_Decode$andThen,
-			function (msg) {
-				var _p35 = msg;
-				switch (_p35) {
-					case 'connected':
-						return _elm_lang$core$Json_Decode$succeed(_connexity$ksql_web$Main$MetaConnected);
-					case 'rawContentFollows':
-						return A2(
-							_elm_lang$core$Json_Decode$map,
-							_connexity$ksql_web$Main$MetaRawContentFollows,
-							A2(_elm_lang$core$Json_Decode$field, 'format', _elm_lang$core$Json_Decode$string));
-					default:
-						return _elm_lang$core$Json_Decode$fail(
-							A2(_elm_lang$core$Basics_ops['++'], 'Unhandled ksqlWeb message: ', _p35));
-				}
-			},
-			A2(_elm_lang$core$Json_Decode$field, 'msg', _elm_lang$core$Json_Decode$string)));
-	return _elm_lang$core$Json_Decode$oneOf(
-		{
-			ctor: '::',
-			_0: ksqlWebRespDecoder,
-			_1: {
-				ctor: '::',
-				_0: rowRespDecoder,
-				_1: {
-					ctor: '::',
-					_0: propertiesRespDecoder,
-					_1: {
-						ctor: '::',
-						_0: queriesRespDecoder,
-						_1: {
-							ctor: '::',
-							_0: streamsRespDecoder,
-							_1: {
-								ctor: '::',
-								_0: tablesRespDecoder,
-								_1: {
-									ctor: '::',
-									_0: topicsRespDecoder,
-									_1: {
-										ctor: '::',
-										_0: descrRespDecoder,
-										_1: {
-											ctor: '::',
-											_0: curStatusDecoder,
-											_1: {
-												ctor: '::',
-												_0: rawContentDecoder,
-												_1: {
-													ctor: '::',
-													_0: notificationRespDecoder,
-													_1: {
-														ctor: '::',
-														_0: errorMessageRespDecoder,
-														_1: {ctor: '[]'}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		});
-}();
-var _connexity$ksql_web$Main$update = F2(
-	function (msg, model) {
-		var _p36 = msg;
-		switch (_p36.ctor) {
-			case 'PerformInTimedState':
-				return {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{state: _p36._1}),
-					_1: _p36._0
-				};
-			case 'ChangeQuery':
-				var query = model.query;
-				return {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{
-							query: _elm_lang$core$Native_Utils.update(
-								query,
-								{
-									editBuffers: A3(_elm_lang$core$Dict$insert, query.currentHistoryIndex, _p36._0, query.editBuffers)
-								})
-						}),
-					_1: _elm_lang$core$Platform_Cmd$none
-				};
-			case 'RunQuery':
-				return {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{
-							result: _elm_lang$core$Maybe$Nothing,
-							notifications: {ctor: '[]'},
-							errorMessages: {ctor: '[]'}
-						}),
-					_1: function () {
-						var queryText = _elm_lang$core$String$trim(
-							_connexity$ksql_web$Main$currentQueryText(model.query));
-						return _elm_lang$core$String$isEmpty(queryText) ? _elm_lang$core$Platform_Cmd$none : _elm_lang$core$Platform_Cmd$batch(
-							{
-								ctor: '::',
-								_0: A2(
-									_elm_lang$core$Task$perform,
-									function (_p37) {
-										return A2(
-											_connexity$ksql_web$Main$PerformInTimedState,
-											A2(_connexity$ksql_web$Main$sendQuery, model.flags, queryText),
-											_connexity$ksql_web$Main$Running(
-												A2(_connexity$ksql_web$Main$DeterminateProgress, 0, _p37)));
-									},
-									_elm_lang$core$Time$now),
-								_1: {
-									ctor: '::',
-									_0: _connexity$ksql_web$Main$localStorageGetQueryHistoryCmd(
-										{ctor: '_Tuple0'}),
-									_1: {ctor: '[]'}
-								}
-							});
-					}()
-				};
-			case 'PauseQuery':
-				var updatedState = function () {
-					var _p38 = model.state;
-					if (_p38.ctor === 'Streaming') {
-						return A2(_connexity$ksql_web$Main$Streaming, !_p38._0, _p38._1);
-					} else {
-						return _p38;
-					}
-				}();
-				var updatedCmd = function () {
-					var _p39 = updatedState;
-					if ((_p39.ctor === 'Streaming') && (_p39._0 === true)) {
-						return _connexity$ksql_web$Main$scrollToBottom;
-					} else {
-						return _elm_lang$core$Platform_Cmd$none;
-					}
-				}();
-				var _p40 = model.result;
-				_v22_2:
-				do {
-					if (_p40.ctor === 'Just') {
-						switch (_p40._0.ctor) {
-							case 'StreamingTabularResult':
-								return {
-									ctor: '_Tuple2',
-									_0: _elm_lang$core$Native_Utils.update(
-										model,
-										{
-											state: updatedState,
-											result: _elm_lang$core$Maybe$Just(
-												_connexity$ksql_web$Main$StreamingTabularResult(
-													_connexity$ksql_web$Stream$togglePause(_p40._0._0)))
-										}),
-									_1: updatedCmd
-								};
-							case 'StreamingTextualResult':
-								return {
-									ctor: '_Tuple2',
-									_0: _elm_lang$core$Native_Utils.update(
-										model,
-										{
-											state: updatedState,
-											result: _elm_lang$core$Maybe$Just(
-												_connexity$ksql_web$Main$StreamingTextualResult(
-													_connexity$ksql_web$Stream$togglePause(_p40._0._0)))
-										}),
-									_1: updatedCmd
-								};
-							default:
-								break _v22_2;
-						}
-					} else {
-						break _v22_2;
-					}
-				} while(false);
-				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
-			case 'StopQuery':
-				return {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{state: _connexity$ksql_web$Main$Idle}),
-					_1: A2(
-						_elm_lang$websocket$WebSocket$send,
-						_connexity$ksql_web$Main$webSocketUrl(model.flags),
-						'{\"cmd\":\"stop\"}')
-				};
-			case 'UpdateQueryHistory':
-				var _p42 = _p36._0;
-				var queryText = _connexity$ksql_web$Main$currentQueryText(model.query);
-				var updatedQueryHistory = function () {
-					var _p41 = _p42;
-					if (_p41.ctor === '[]') {
-						return {
-							ctor: '::',
-							_0: queryText,
-							_1: {ctor: '[]'}
-						};
-					} else {
-						return _elm_lang$core$Native_Utils.eq(_p41._0, queryText) ? _p42 : A2(
-							_elm_lang$core$List$take,
-							_connexity$ksql_web$Main$maxQueryHistoryItems,
-							{ctor: '::', _0: queryText, _1: _p42});
-					}
-				}();
-				return {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{
-							query: A3(_connexity$ksql_web$Main$Query, updatedQueryHistory, 0, _elm_lang$core$Dict$empty)
-						}),
-					_1: _connexity$ksql_web$Main$localStorageSetQueryHistoryCmd(updatedQueryHistory)
-				};
-			case 'UsePrevQueryInHistory':
-				var existingQuery = model.query;
-				var updatedQuery = _elm_lang$core$Native_Utils.update(
-					existingQuery,
-					{
-						currentHistoryIndex: A2(
-							_elm_lang$core$Basics$min,
-							_elm_lang$core$List$length(existingQuery.queryHistory) - 1,
-							existingQuery.currentHistoryIndex + 1)
-					});
-				return _elm_lang$core$Native_Utils.eq(existingQuery, updatedQuery) ? {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none} : {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{query: updatedQuery}),
-					_1: function () {
-						var value = _connexity$ksql_web$Main$currentQueryText(updatedQuery);
-						return _connexity$ksql_web$Main$codeMirrorDocSetValueCursorCmd(
-							{
-								value: value,
-								cursor: {
-									line: _elm_lang$core$List$length(
-										_elm_lang$core$String$lines(value)),
-									ch: 0
-								}
-							});
-					}()
-				};
-			case 'UseNextQueryInHistory':
-				var existingQuery = model.query;
-				var updatedQuery = _elm_lang$core$Native_Utils.update(
-					existingQuery,
-					{
-						currentHistoryIndex: A2(_elm_lang$core$Basics$max, -1, existingQuery.currentHistoryIndex - 1)
-					});
-				return _elm_lang$core$Native_Utils.eq(existingQuery, updatedQuery) ? {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none} : {
-					ctor: '_Tuple2',
-					_0: _elm_lang$core$Native_Utils.update(
-						model,
-						{query: updatedQuery}),
-					_1: function () {
-						var value = _connexity$ksql_web$Main$currentQueryText(updatedQuery);
-						return _connexity$ksql_web$Main$codeMirrorDocSetValueCursorCmd(
-							{
-								value: value,
-								cursor: {line: 0, ch: 1}
-							});
-					}()
-				};
-			case 'WebSocketIncoming':
-				var _p53 = _p36._0;
-				var responsesResult = A2(
-					_elm_lang$core$Json_Decode$decodeString,
-					_elm_lang$core$Json_Decode$list(_connexity$ksql_web$Main$responseDecoder),
-					_p53);
-				return {
-					ctor: '_Tuple2',
-					_0: function () {
-						var _p43 = responsesResult;
-						if (_p43.ctor === 'Ok') {
-							return A3(
-								_elm_lang$core$List$foldr,
-								F2(
-									function (response, model) {
-										var _p44 = response;
-										switch (_p44.ctor) {
-											case 'MetaConnected':
-												var _p45 = model.state;
-												if (_p45.ctor === 'Initializing') {
-													return _elm_lang$core$Native_Utils.update(
-														model,
-														{state: _connexity$ksql_web$Main$Idle});
-												} else {
-													return model;
-												}
-											case 'StreamedRowResponse':
-												var updatedState = function () {
-													var _p46 = model.state;
-													if (_p46.ctor === 'Running') {
-														return A2(
-															_connexity$ksql_web$Main$Streaming,
-															true,
-															A2(
-																_connexity$ksql_web$Main$IndeterminateProgress,
-																{
-																	ctor: '::',
-																	_0: 0,
-																	_1: {ctor: '[]'}
-																},
-																_p46._0.currentTime));
-													} else {
-														return _p46;
-													}
-												}();
-												var rows = function () {
-													var _p47 = model.result;
-													if ((_p47.ctor === 'Just') && (_p47._0.ctor === 'StreamingTabularResult')) {
-														return _p47._0._0;
-													} else {
-														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
-													}
-												}();
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: updatedState,
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$StreamingTabularResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p44._0, rows)))
-													});
-											case 'TableResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: _connexity$ksql_web$Main$Idle,
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p44._0))
-													});
-											case 'NotificationMessageResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: _connexity$ksql_web$Main$Idle,
-														notifications: {ctor: '::', _0: _p44._0, _1: model.notifications}
-													});
-											case 'TableAndNotificationMessageResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: _connexity$ksql_web$Main$Idle,
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$TabularResult(_p44._0)),
-														notifications: {ctor: '::', _0: _p44._1, _1: model.notifications}
-													});
-											case 'DescribeExtendedResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: _connexity$ksql_web$Main$Idle,
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$DescribeExtendedResult(_p44._0))
-													});
-											case 'ExplainResponse':
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: _connexity$ksql_web$Main$Idle,
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$ExplainResult(_p44._0))
-													});
-											case 'MetaRawContentFollows':
-												var lines = function () {
-													var _p48 = model.result;
-													if ((_p48.ctor === 'Just') && (_p48._0.ctor === 'StreamingTextualResult')) {
-														return _p48._0._0;
-													} else {
-														return A2(
-															_connexity$ksql_web$Stream_ops[':::'],
-															A2(_elm_lang$core$Basics_ops['++'], 'Format: ', _p44._0),
-															_connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows));
-													}
-												}();
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$StreamingTextualResult(lines))
-													});
-											case 'StreamedTextResponse':
-												var updatedState = function () {
-													var _p49 = model.state;
-													if (_p49.ctor === 'Running') {
-														return A2(
-															_connexity$ksql_web$Main$Streaming,
-															true,
-															A2(
-																_connexity$ksql_web$Main$IndeterminateProgress,
-																{
-																	ctor: '::',
-																	_0: 0,
-																	_1: {ctor: '[]'}
-																},
-																_p49._0.currentTime));
-													} else {
-														return _p49;
-													}
-												}();
-												var lines = function () {
-													var _p50 = model.result;
-													if ((_p50.ctor === 'Just') && (_p50._0.ctor === 'StreamingTextualResult')) {
-														return _p50._0._0;
-													} else {
-														return _connexity$ksql_web$Stream$empty(_connexity$ksql_web$Main$maxDisplayedRows);
-													}
-												}();
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{
-														state: updatedState,
-														result: _elm_lang$core$Maybe$Just(
-															_connexity$ksql_web$Main$StreamingTextualResult(
-																A2(_connexity$ksql_web$Stream_ops[':::'], _p44._0, lines)))
-													});
-											default:
-												var newErrorMessages = function () {
-													var _p51 = _elm_lang$core$String$lines(_p44._0);
-													if (_p51.ctor === '::') {
-														return {ctor: '::', _0: _p51._0, _1: model.errorMessages};
-													} else {
-														return model.errorMessages;
-													}
-												}();
-												return _elm_lang$core$Native_Utils.update(
-													model,
-													{state: _connexity$ksql_web$Main$Idle, errorMessages: newErrorMessages});
-										}
-									}),
-								model,
-								_p43._0);
-						} else {
-							return _elm_lang$core$Native_Utils.update(
-								model,
-								{
-									errorMessages: {
-										ctor: '::',
-										_0: A2(
-											_elm_lang$core$Basics_ops['++'],
-											'Error parsing JSON (',
-											A2(
-												_elm_lang$core$Basics_ops['++'],
-												_p43._0,
-												A2(_elm_lang$core$Basics_ops['++'], '):\n', _p53))),
-										_1: {ctor: '[]'}
-									}
-								});
-						}
-					}(),
-					_1: function () {
-						var _p52 = {ctor: '_Tuple2', _0: responsesResult, _1: model.state};
-						_v33_2:
-						do {
-							if ((_p52.ctor === '_Tuple2') && (_p52._1.ctor === 'Streaming')) {
-								if ((((_p52._0.ctor === 'Ok') && (_p52._0._0.ctor === '::')) && (_p52._0._0._0.ctor === 'MetaConnected')) && (_p52._0._0._1.ctor === '[]')) {
-									return A2(
-										_connexity$ksql_web$Main$sendQuery,
-										model.flags,
-										_connexity$ksql_web$Main$currentQueryText(model.query));
-								} else {
-									if (_p52._1._0 === true) {
-										return _connexity$ksql_web$Main$scrollToBottom;
-									} else {
-										break _v33_2;
-									}
-								}
-							} else {
-								break _v33_2;
-							}
-						} while(false);
-						return _elm_lang$core$Platform_Cmd$none;
-					}()
-				};
-			case 'SendWebSocketKeepAlive':
-				return {
-					ctor: '_Tuple2',
-					_0: model,
-					_1: A2(
-						_elm_lang$websocket$WebSocket$send,
-						_connexity$ksql_web$Main$webSocketUrl(model.flags),
-						'{}')
-				};
-			case 'ProgressTick':
-				var _p60 = _p36._0;
-				return {
-					ctor: '_Tuple2',
-					_0: function () {
-						var _p54 = model.state;
-						switch (_p54.ctor) {
-							case 'Initializing':
-								var _p55 = _p54._0;
-								var updatedProgress = _elm_lang$core$Native_Utils.update(
-									_p55,
-									{duration: (_p55.duration + _p60) - _p55.currentTime, currentTime: _p60});
-								return _elm_lang$core$Native_Utils.update(
-									model,
-									{
-										state: _connexity$ksql_web$Main$Initializing(updatedProgress)
-									});
-							case 'Running':
-								var _p56 = _p54._0;
-								var updatedProgress = _elm_lang$core$Native_Utils.update(
-									_p56,
-									{duration: (_p56.duration + _p60) - _p56.currentTime, currentTime: _p60});
-								return _elm_lang$core$Native_Utils.update(
-									model,
-									{
-										state: _connexity$ksql_web$Main$Running(updatedProgress)
-									});
-							case 'Streaming':
-								var _p58 = _p54._1;
-								var _p57 = _p54._0;
-								var updatedProgress = function () {
-									var duration = _p60 - _p58.currentTime;
-									var markerDurations = (!_p57) ? _p58.markerDurations : A2(
-										_elm_lang$core$List$map,
-										F2(
-											function (x, y) {
-												return x + y;
-											})(duration),
-										_p58.markerDurations);
-									return _elm_lang$core$Native_Utils.update(
-										_p58,
-										{markerDurations: markerDurations, currentTime: _p60});
-								}();
-								return _elm_lang$core$Native_Utils.update(
-									model,
-									{
-										state: A2(_connexity$ksql_web$Main$Streaming, _p57, updatedProgress)
-									});
-							default:
-								return model;
-						}
-					}(),
-					_1: function () {
-						var _p59 = model.state;
-						if ((_p59.ctor === 'Streaming') && (_p59._0 === true)) {
-							return A2(
-								_elm_lang$core$Random$generate,
-								_connexity$ksql_web$Main$ProgressAddRandomMarker,
-								A2(_elm_lang$core$Random$int, 0, 15));
-						} else {
-							return _elm_lang$core$Platform_Cmd$none;
-						}
-					}()
-				};
-			case 'ProgressAddRandomMarker':
-				var _p61 = model.state;
-				if ((_p61.ctor === 'Streaming') && (_p61._0 === true)) {
-					var _p63 = _p61._1.markerDurations;
-					var newMarkerDurations = function () {
-						var _p62 = _p36._0;
-						switch (_p62) {
-							case 1:
-								return {
-									ctor: '::',
-									_0: 0,
-									_1: {ctor: '[]'}
-								};
-							case 2:
-								return {
-									ctor: '::',
-									_0: 66,
-									_1: {ctor: '[]'}
-								};
-							case 3:
-								return {
-									ctor: '::',
-									_0: 0,
-									_1: {
-										ctor: '::',
-										_0: 66,
-										_1: {ctor: '[]'}
-									}
-								};
-							case 4:
-								return {
-									ctor: '::',
-									_0: 133,
-									_1: {ctor: '[]'}
-								};
-							case 5:
-								return {
-									ctor: '::',
-									_0: 0,
-									_1: {
-										ctor: '::',
-										_0: 133,
-										_1: {ctor: '[]'}
-									}
-								};
-							case 6:
-								return {
-									ctor: '::',
-									_0: 66,
-									_1: {
-										ctor: '::',
-										_0: 133,
-										_1: {ctor: '[]'}
-									}
-								};
-							case 7:
-								return {
-									ctor: '::',
-									_0: 0,
-									_1: {
-										ctor: '::',
-										_0: 66,
-										_1: {
-											ctor: '::',
-											_0: 133,
-											_1: {ctor: '[]'}
-										}
-									}
-								};
-							default:
-								return {ctor: '[]'};
-						}
-					}();
-					var updatedMarkerDurations = A2(
-						_elm_lang$core$List$all,
-						function (t) {
-							return _elm_lang$core$Native_Utils.cmp(t, _connexity$ksql_web$Main$progressMarkerLife) > 0;
-						},
-						_p63) ? newMarkerDurations : A2(_elm_lang$core$Basics_ops['++'], newMarkerDurations, _p63);
-					return {
-						ctor: '_Tuple2',
-						_0: _elm_lang$core$Native_Utils.update(
-							model,
-							{
-								state: A2(
-									_connexity$ksql_web$Main$Streaming,
-									true,
-									A2(_connexity$ksql_web$Main$IndeterminateProgress, updatedMarkerDurations, _p61._1.currentTime))
-							}),
-						_1: _elm_lang$core$Platform_Cmd$none
-					};
-				} else {
-					return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
-				}
-			default:
-				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
-		}
-	});
+
 var _connexity$ksql_web$Main$main = _elm_lang$html$Html$programWithFlags(
-	{init: _connexity$ksql_web$Main$init, update: _connexity$ksql_web$Main$update, subscriptions: _connexity$ksql_web$Main$subscriptions, view: _connexity$ksql_web$Main$view})(
+	{init: _connexity$ksql_web$Ksql_Init$init, update: _connexity$ksql_web$Ksql_Update$update, subscriptions: _connexity$ksql_web$Ksql_Subscriptions$subscriptions, view: _connexity$ksql_web$Ksql_View$view})(
 	A2(
 		_elm_lang$core$Json_Decode$andThen,
 		function (host) {
@@ -13204,6 +13210,36 @@ var _connexity$ksql_web$Main$main = _elm_lang$html$Html$programWithFlags(
 		A2(_elm_lang$core$Json_Decode$field, 'host', _elm_lang$core$Json_Decode$string)));
 
 var Elm = {};
+Elm['Ksql'] = Elm['Ksql'] || {};
+Elm['Ksql']['Common'] = Elm['Ksql']['Common'] || {};
+if (typeof _connexity$ksql_web$Ksql_Common$main !== 'undefined') {
+    _connexity$ksql_web$Ksql_Common$main(Elm['Ksql']['Common'], 'Ksql.Common', undefined);
+}
+Elm['Ksql'] = Elm['Ksql'] || {};
+Elm['Ksql']['Init'] = Elm['Ksql']['Init'] || {};
+if (typeof _connexity$ksql_web$Ksql_Init$main !== 'undefined') {
+    _connexity$ksql_web$Ksql_Init$main(Elm['Ksql']['Init'], 'Ksql.Init', undefined);
+}
+Elm['Ksql'] = Elm['Ksql'] || {};
+Elm['Ksql']['Port'] = Elm['Ksql']['Port'] || {};
+if (typeof _connexity$ksql_web$Ksql_Port$main !== 'undefined') {
+    _connexity$ksql_web$Ksql_Port$main(Elm['Ksql']['Port'], 'Ksql.Port', undefined);
+}
+Elm['Ksql'] = Elm['Ksql'] || {};
+Elm['Ksql']['Subscriptions'] = Elm['Ksql']['Subscriptions'] || {};
+if (typeof _connexity$ksql_web$Ksql_Subscriptions$main !== 'undefined') {
+    _connexity$ksql_web$Ksql_Subscriptions$main(Elm['Ksql']['Subscriptions'], 'Ksql.Subscriptions', undefined);
+}
+Elm['Ksql'] = Elm['Ksql'] || {};
+Elm['Ksql']['Update'] = Elm['Ksql']['Update'] || {};
+if (typeof _connexity$ksql_web$Ksql_Update$main !== 'undefined') {
+    _connexity$ksql_web$Ksql_Update$main(Elm['Ksql']['Update'], 'Ksql.Update', undefined);
+}
+Elm['Ksql'] = Elm['Ksql'] || {};
+Elm['Ksql']['View'] = Elm['Ksql']['View'] || {};
+if (typeof _connexity$ksql_web$Ksql_View$main !== 'undefined') {
+    _connexity$ksql_web$Ksql_View$main(Elm['Ksql']['View'], 'Ksql.View', undefined);
+}
 Elm['Main'] = Elm['Main'] || {};
 if (typeof _connexity$ksql_web$Main$main !== 'undefined') {
     _connexity$ksql_web$Main$main(Elm['Main'], 'Main', undefined);
