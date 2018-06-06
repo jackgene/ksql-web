@@ -33,12 +33,12 @@ runOnInit search =
 
 init : Flags -> (Model, Cmd Msg)
 init flags =
-  ( Model flags Idle (Query flags.queryHistory -1 (Dict.singleton -1 "")) Nothing [] []
+  ( Model flags Idle Dict.empty (Query flags.queryHistory -1 (Dict.singleton -1 "")) Nothing [] []
   , Cmd.batch
     [ Task.perform
         ( PerformInTimedState
           ( case (runOnInit flags.search, queryTextFromSearch flags.search) of
-              (True, Just queryText) -> sendQuery flags queryText
+              (True, Just queryText) -> sendQuery flags Dict.empty queryText
               _ -> Cmd.none
           )
           << Initializing << DeterminateProgress 0

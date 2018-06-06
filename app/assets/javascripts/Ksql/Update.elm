@@ -30,6 +30,7 @@ type Response
   | StreamedRowResponse Row
   | StreamedTextResponse String
   | TableResponse Table
+  | PropertiesResponse (Dict String String)
   | DescribeExtendedResponse ExtendedSchema
   | ExplainResponse ExecutionPlan
   | NotificationMessageResponse String
@@ -66,8 +67,8 @@ responseDecoder =
         boolColumnDecoder : Decode.Decoder Column
         boolColumnDecoder = Decode.map BoolColumn Decode.bool
 
-        intColumnDecoder : Decode.Decoder Column
-        intColumnDecoder = Decode.map NumericColumn Decode.float
+        numericColumnDecoder : Decode.Decoder Column
+        numericColumnDecoder = Decode.map NumericColumn Decode.float
 
         stringColumnDecoder : Decode.Decoder Column
         stringColumnDecoder = Decode.map StringColumn Decode.string
@@ -83,7 +84,7 @@ responseDecoder =
       in
         Decode.oneOf
         [ boolColumnDecoder
-        , intColumnDecoder
+        , numericColumnDecoder
         , stringColumnDecoder
         , nullColumnDecoder
         , arrayColumnDecoder
@@ -104,15 +105,18 @@ responseDecoder =
     propertiesRespDecoder : Decode.Decoder Response
     propertiesRespDecoder =
       let
-        propertiesObjectDecoder : Decode.Decoder (List Row)
+        valueDecoder : Decode.Decoder String
+        valueDecoder =
+          Decode.oneOf
+          [ Decode.string
+          , Decode.map toString Decode.float
+          , Decode.map toString Decode.bool
+          ]
+
+        propertiesObjectDecoder : Decode.Decoder (Dict String String)
         propertiesObjectDecoder =
-          Decode.map
-            (\kvPairs -> List.map (\(k, v) -> [ StringColumn k, v ]) kvPairs)
-            (Decode.at [ "properties", "properties" ] (Decode.keyValuePairs columnDecoder))
-      in
-        Decode.map
-          (TableResponse << Table [ StringColumn "Property", StringColumn "Value" ])
-          propertiesObjectDecoder
+          Decode.at [ "properties", "properties" ] (Decode.dict valueDecoder)
+      in Decode.map PropertiesResponse propertiesObjectDecoder
 
 
     -- Decodes {"queries":...}
@@ -409,12 +413,12 @@ update msg model =
           queryText =
             String.trim (currentQueryText model.query)
         in
-          if String.isEmpty queryText then Cmd.none
+          if String.isEmpty fqueryText then Cmd.none
           else
             Cmd.batch
             [ Task.perform
               ( PerformInTimedState
-                (sendQuery model.flags queryText)
+                (sendQuery model.flags model.properties queryText)
                 << Running << DeterminateProgress 0
               )
               Time.now
@@ -578,6 +582,12 @@ update msg model =
                       , notifications = msg :: model.notifications
                       }
 
+                    PropertiesResponse props ->
+                      { model
+                      | state = Idle
+                      , result = Just (PropertiesResult props)
+                      }
+
                     DescribeExtendedResponse extendedSchema ->
                       { model
                       | state = Idle
@@ -640,7 +650,7 @@ update msg model =
               { model | errorMessages = [ "Error parsing JSON (" ++ errorMsg ++ "):\n" ++ responseJson ] }
         , case (responsesResult, model.state) of
             (Ok [ MetaConnected ], Streaming _ _) ->
-              sendQuery model.flags (currentQueryText model.query)
+              sendQuery model.flags model.properties (currentQueryText model.query)
             (_, Streaming True _) -> scrollToBottom
             _ -> Cmd.none
         )

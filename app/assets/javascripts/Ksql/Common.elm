@@ -26,14 +26,21 @@ currentQueryText query =
     ]
 
 
-ksqlCommandJson : String -> Encode.Value
-ksqlCommandJson query =
-  Encode.object [ ("ksql", Encode.string query) ]
+ksqlCommandJson : Dict String String -> String -> Encode.Value
+ksqlCommandJson props query =
+  Encode.object
+  [ ("ksql"
+    , Encode.string query
+    )
+  , ("streamsProperties"
+    , Encode.object (Dict.toList (Dict.map (\_ -> \value -> Encode.string value) props))
+    )
+  ]
 
 
-sendQuery : Flags -> String -> Cmd msg
-sendQuery flags query =
-  WebSocket.send (webSocketUrl flags) (Encode.encode 0 (ksqlCommandJson query))
+sendQuery : Flags -> Dict String String -> String -> Cmd msg
+sendQuery flags props query =
+  WebSocket.send (webSocketUrl flags) (Encode.encode 0 (ksqlCommandJson props query))
 
 
 -- Model
@@ -129,6 +136,7 @@ type QueryResult
   = StreamingTabularResult (Stream Row)
   | StreamingTextualResult (Stream String)
   | TabularResult Table
+  | PropertiesResult (Dict String String)
   | DescribeExtendedResult ExtendedSchema
   | ExplainResult ExecutionPlan
 
@@ -136,6 +144,7 @@ type QueryResult
 type alias Model =
   { flags : Flags
   , state : State
+  , properties : Dict String String
   , query : Query
   , result : Maybe QueryResult
   , notifications : List String

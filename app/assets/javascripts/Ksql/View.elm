@@ -1,5 +1,6 @@
 module Ksql.View exposing (view)
 
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
 import Html.Events exposing (onClick)
@@ -212,6 +213,33 @@ view model =
                     (\row -> \rowViews -> (rowView False row) :: rowViews)
                     []
                     dataRows
+                  )
+                )
+              ]
+
+            Just (PropertiesResult props) ->
+              [ table [ class "data" ]
+                ( rowView True
+                  [ StringColumn "Property"
+                  , StringColumn "Value"
+                  , StringColumn "Local"
+                  , StringColumn "Overridden Value"
+                  ] ::
+                  ( List.map
+                    ( \(prop, value) ->
+                      rowView False
+                      ( StringColumn prop :: StringColumn value ::
+                        if Dict.member prop model.properties then
+                          [ BoolColumn True
+                          , Maybe.withDefault NullColumn (Maybe.map StringColumn (Dict.get prop props))
+                          ]
+                        else
+                          [ BoolColumn False
+                          , NullColumn
+                          ]
+                      )
+                    )
+                    (Dict.toList (Dict.union model.properties props))
                   )
                 )
               ]
