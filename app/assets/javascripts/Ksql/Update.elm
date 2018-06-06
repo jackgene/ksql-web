@@ -413,7 +413,7 @@ update msg model =
           queryText =
             String.trim (currentQueryText model.query)
         in
-          if String.isEmpty fqueryText then Cmd.none
+          if String.isEmpty queryText then Cmd.none
           else
             Cmd.batch
             [ Task.perform
