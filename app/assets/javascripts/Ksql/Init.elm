@@ -1,11 +1,16 @@
 module Ksql.Init exposing (init)
 
-import Dict
+import Dict exposing (Dict)
 import Http
 import Ksql.Common exposing (..)
 import Ksql.Port exposing (codeMirrorDocSetValueCursorCmd, codeMirrorFromTextAreaCmd)
 import Task
 import Time
+
+
+initProperties : Dict String String
+initProperties =
+  Dict.fromList [ ("application.id", "ksql-web") ]
 
 
 searchParts : String -> List String
@@ -26,14 +31,14 @@ queryTextFromSearch search =
   )
 
 
-runOnInit  : String -> Bool
+runOnInit : String -> Bool
 runOnInit search =
   not (List.isEmpty (List.filter (String.startsWith "run") (searchParts search)))
 
 
 init : Flags -> (Model, Cmd Msg)
 init flags =
-  ( Model flags Idle Dict.empty (Query flags.queryHistory -1 (Dict.singleton -1 "")) Nothing [] []
+  ( Model flags Idle initProperties (Query flags.queryHistory -1 (Dict.singleton -1 "")) Nothing [] []
   , Cmd.batch
     [ Task.perform
         ( PerformInTimedState
