@@ -6,6 +6,7 @@ import Json.Decode as Decode
 import Ksql.Common exposing (..)
 import Ksql.Port exposing (..)
 import Random
+import Regex exposing (Regex)
 import Stream exposing (Stream, (:::))
 import Task
 import Time exposing (Time, millisecond, second)
@@ -19,6 +20,15 @@ maxDisplayedRows = 5000
 maxQueryHistoryItems : Int
 maxQueryHistoryItems = 500
 
+
+setStatementRegex : Regex
+setStatementRegex =
+  Regex.caseInsensitive (Regex.regex "^SET\\W+'((?:[^']|'')+)'\\W*=\\W*'((?:[^']|'')*)';$")
+
+
+unsetStatementRegex : Regex
+unsetStatementRegex =
+  Regex.caseInsensitive (Regex.regex "^UNSET\\W+'((?:[^']|'')+)';$")
 
 -- Update
 -- JSON response from WebSocket
@@ -378,6 +388,16 @@ responseDecoder =
       ]
 
 
+escapeSqlString : String -> String
+escapeSqlString =
+  Regex.replace Regex.All (Regex.regex "'") (\_ -> "''")
+
+
+unescapeSqlString : String -> String
+unescapeSqlString =
+  Regex.replace Regex.All (Regex.regex "''") (\_ -> "'")
+
+
 scrollToBottom : Cmd Msg
 scrollToBottom =
   Task.attempt (always NoOp) (Dom.Scroll.toBottom "output")
@@ -403,19 +423,70 @@ update msg model =
         )
 
     RunQuery ->
-      ( { model
-        | result = Nothing
-        , notifications = []
-        , errorMessages = []
-        }
-      , let
-          queryText : String
-          queryText =
-            String.trim (currentQueryText model.query)
-        in
-          if String.isEmpty queryText then Cmd.none
-          else
-            Cmd.batch
+      let
+        resetModel : Model
+        resetModel =
+          { model
+          | result = Nothing
+          , notifications = []
+          , errorMessages = []
+          }
+
+        queryText : String
+        queryText =
+          String.trim (currentQueryText model.query)
+      in
+        if String.isEmpty queryText then (resetModel, Cmd.none)
+        else if String.startsWith "SET " (String.toUpper queryText) then
+          case List.map .submatches (Regex.find Regex.All setStatementRegex queryText) of
+            [ [ Just propEsc, Just valueEsc ] ] ->
+              let
+                prop : String
+                prop = unescapeSqlString propEsc
+              in
+                ( { resetModel
+                  | properties = Dict.insert prop (unescapeSqlString valueEsc) model.properties
+                  , notifications =
+                    [ "Successfully changed local property '" ++ propEsc ++
+                      "' from '" ++ (escapeSqlString (Maybe.withDefault "" (Dict.get prop model.properties))) ++
+                      "' to '" ++ valueEsc ++ "'"
+                    ]
+                  }
+                , localStorageGetQueryHistoryCmd ()
+                )
+            _ ->
+              ( { resetModel
+                | errorMessages = [ "Syntax error in SET statement, correct syntax is \nSET '...'='...';" ]
+                }
+              , Cmd.none
+              )
+        else if String.startsWith "UNSET " (String.toUpper queryText) then
+          case List.map .submatches (Regex.find Regex.All unsetStatementRegex queryText) of
+            [ [ Just propEsc ] ] ->
+              let
+                prop : String
+                prop = unescapeSqlString propEsc
+              in
+                ( { resetModel
+                  | properties = Dict.remove prop model.properties
+                  , notifications =
+                    [ "Successfully unset local property '" ++ propEsc ++
+                      "' (value was '" ++
+                      (escapeSqlString (Maybe.withDefault "" (Dict.get prop model.properties))) ++
+                      "')"
+                    ]
+                  }
+                , localStorageGetQueryHistoryCmd ()
+                )
+            _ ->
+              ( { resetModel
+                | errorMessages = [ "Syntax error in UNSET statement, correct syntax is:\nUNSET '...';" ]
+                }
+              , Cmd.none
+              )
+        else
+          ( resetModel
+          , Cmd.batch
             [ Task.perform
               ( PerformInTimedState
                 (sendQuery model.flags model.properties queryText)
@@ -424,7 +495,7 @@ update msg model =
               Time.now
             , localStorageGetQueryHistoryCmd ()
             ]
-      )
+          )
 
     PauseQuery ->
       let
