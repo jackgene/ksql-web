@@ -2,13 +2,15 @@
   <head>
     <script>
       var xhr = new XMLHttpRequest()
-      xhr.open("POST", "http://localhost:9098/query", true);
+      xhr.open("POST", "http://dev012.dev.connexity.net:8088/ksql", true);
       xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
       xhr.onprogress = function () {
-        console.log("PROGRESS:", xhr.responseText)
+        console.log("STATUS:" + xhr.status)
+        console.log("PROGRESS:" + xhr.responseText)
       }
-      xhr.send('{"ksql": "SELECT * FROM flog LIMIT 10;"}')
-      // xhr.send('{"ksql": "SELECT * FROM flog LIMIT 10;","streamsProperties": {}}')
+      // xhr.send('{"ksql": "SHOW TOPICS;"}')
+      xhr.send('{"ksql": "SHOW PROPERTIES;","streamsProperties": {"ksql.core.streams.auto.offset.reset": "earlier"}}')
     </script>
   </head>
 </html>
+
