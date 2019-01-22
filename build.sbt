@@ -8,14 +8,6 @@ scalaVersion := "2.12.4"
 
 scalacOptions ++= Seq("-feature", "-deprecation")
 
-resolvers += Resolver.mavenLocal
-resolvers += "Maven central mirror" at "http://nexus.shopzilla.com:2099/nexus/content/repositories/central"
-resolvers += "Internal releases" at "http://nexus.shopzilla.com:2099/nexus/content/repositories/internal-releases"
-resolvers += "Internal snapshots" at "http://nexus.shopzilla.com:2099/nexus/content/repositories/internal-snapshots"
-resolvers += "Internal 3rd party" at "http://nexus.shopzilla.com:2099/nexus/content/repositories/thirdparty"
-
-externalResolvers := Resolver.withDefaultResolvers(resolvers.value, mavenCentral = false)
-
 libraryDependencies += guice
 libraryDependencies += ws
 libraryDependencies +=  "org.webjars" % "codemirror" % "5.33.0"
