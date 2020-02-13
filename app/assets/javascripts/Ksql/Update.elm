@@ -9,7 +9,7 @@ import Random
 import Regex exposing (Regex)
 import Stream exposing (Stream, (:::))
 import Task
-import Time exposing (Time, millisecond, second)
+import Time exposing (Time)
 import WebSocket
 
 
@@ -774,7 +774,7 @@ update msg model =
               { model | state = Streaming live updatedProgress }
           _ -> model
       , case model.state of
-          Streaming True progress ->
+          Streaming True _ ->
             Random.generate ProgressAddRandomMarker (Random.int 0 15)
           _ -> Cmd.none
       )

@@ -2,7 +2,7 @@ module Ksql.View exposing (view)
 
 import Dict
 import Html exposing (..)
-import Html.Attributes exposing (autofocus, class, href, id, src, style, target, title)
+import Html.Attributes exposing (autofocus, class, href, id, style, target, title)
 import Html.Events exposing (onClick)
 import Http
 import Ksql.Common exposing (..)
