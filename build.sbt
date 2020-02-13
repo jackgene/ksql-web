@@ -13,7 +13,7 @@ libraryDependencies += ws
 libraryDependencies +=  "org.webjars" % "codemirror" % "5.33.0"
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % Test
 
-watchSources := watchSources.value.filter { _.getName != "main.js" }
+watchSources := watchSources.value.filter { _.getName.endsWith(".scala") }
 
 // Adds additional packages into Twirl
 //TwirlKeys.templateImports += "com.connexity.plm.controllers._"
@@ -31,6 +31,7 @@ elmMake := {
     if (sys.props.getOrElse("elm.debug", "false").toLowerCase != "true") ""
     else "--debug"
   var outErrLines: List[String] = Nil
+  var srcFilePath: Option[String] = None
   var lineNum: Option[String] = None
   var offset: Option[String] = None
   Seq(
@@ -48,9 +49,12 @@ elmMake := {
 
       override def error(s: => String): Unit = {
         streams.value.log.warn(s)
+        val SrcFilePathExtractor = """-- [A-Z ]+ -+ (app/assets/javascripts/.+\.elm)""".r
         val LineNumExtractor = """([0-9]+)\|.*""".r
         val PosExtractor = """ *\^+ *""".r
         s match {
+          case SrcFilePathExtractor(path: String) =>
+            srcFilePath = srcFilePath orElse Some(path)
           case LineNumExtractor(num: String) =>
             lineNum = lineNum orElse Some(num)
           case PosExtractor() =>
@@ -79,7 +83,7 @@ elmMake := {
           lineNumber = lineNum.map(_.toInt).getOrElse(0),
           characterOffset = offset.map(_.indexOf('^') - 2 - lineNum.map(_.length).getOrElse(0)).getOrElse(0),
           lineContent = "",
-          source = file("app/assets/javascripts/Main.elm")
+          source = file(srcFilePath.getOrElse("app/assets/javascripts/Main.elm"))
         )
       )
   }
