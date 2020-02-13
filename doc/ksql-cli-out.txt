@@ -1,0 +1,81 @@
+ksql> DESCRIBE EXTENDED search_term_counts_last_day;
+
+Type                 : TABLE
+Key field            : FLOG_SEARCH_TERMS.SEARCH_TERMS
+Timestamp field      : Not set - using <ROWTIME>
+Key format           : STRING
+Value format         : JSON
+Kafka output topic   : SEARCH_TERM_COUNTS_LAST_DAY (partitions: 4, replication: 1)
+
+ Field        | Type                      
+------------------------------------------
+ ROWTIME      | BIGINT           (system) 
+ ROWKEY       | VARCHAR(STRING)  (system) 
+ SEARCH_TERMS | VARCHAR(STRING)  (key)    
+ SEARCH_COUNT | BIGINT                    
+------------------------------------------
+
+Queries that write into this TABLE
+-----------------------------------
+id:CTAS_SEARCH_TERM_COUNTS_LAST_DAY - CREATE TABLE search_term_counts_last_day WITH (value_format='json') AS
+SELECT search_terms, COUNT(DISTINCT user_id) AS search_count
+FROM flog_search_terms WINDOW HOPPING (SIZE 86400 SECOND, ADVANCE BY 3600 SECOND)
+GROUP BY search_terms HAVING COUNT(*) > 1;
+
+For query topology and execution plan please run: EXPLAIN <QueryId>
+
+Local runtime statistics
+------------------------
+messages-per-sec:   1174.72   total-messages: 205691289     last-message: 4/19/18 9:02:38 AM PDT
+ failed-messages:         0 failed-messages-per-sec:         0      last-failed:       n/a
+(Statistics of the local KSQL server interaction with the Kafka topic SEARCH_TERM_COUNTS_LAST_DAY)
+
+
+
+
+ksql> DESCRIBE EXTENDED flog_search_terms;
+
+Type                 : STREAM
+Key field            : 
+Timestamp field      : TIME
+Key format           : STRING
+Value format         : JSON
+Kafka output topic   : FLOG_SEARCH_TERMS (partitions: 4, replication: 1)
+
+ Field        | Type                      
+------------------------------------------
+ ROWTIME      | BIGINT           (system) 
+ ROWKEY       | VARCHAR(STRING)  (system) 
+ D            | INTEGER                   
+ TIME         | BIGINT                    
+ USER_ID      | VARCHAR(STRING)           
+ SEARCH_TERMS | VARCHAR(STRING)           
+------------------------------------------
+
+Queries that write into this STREAM
+-----------------------------------
+id:CSAS_FLOG_SEARCH_TERMS - CREATE STREAM flog_search_terms WITH (value_format='json', timestamp='time') AS
+SELECT d, time, user_id, LCASE(search_terms) AS search_terms FROM flog
+WHERE search_terms IS NOT NULL;
+
+For query topology and execution plan please run: EXPLAIN <QueryId>
+
+Local runtime statistics
+------------------------
+c-total-messages:  37575955 messages-per-sec:    251.81   total-messages:  16333001     last-message: 4/19/18 9:03:10 AM PDT
+c-failed-messages:         0  failed-messages:         0 failed-messages-per-sec:         0      last-failed:       n/a
+(Statistics of the local KSQL server interaction with the Kafka topic FLOG_SEARCH_TERMS)
+ksql>
+
+
+
+
+ksql> SET 'commit.interval.ms'='50000000000000000000';
+Invalid value 50000000000000000000 for configuration commit.interval.ms: Not a number of type LONG
+ksql> SET 'commit.interval.ms'='5000000000000000000';
+Successfully changed local property 'commit.interval.ms' from '5000' to '5000000000000000000'
+
+
+
+
+ksql> SET 'ksql.fail.on.deserialization.error'='yo';

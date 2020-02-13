@@ -1,0 +1,95 @@
+DROP STREAM flog;
+CREATE STREAM flog (
+  market VARCHAR, dataset VARCHAR, d INTEGER, user_id VARCHAR, device_id VARCHAR, time BIGINT, timezone VARCHAR, page BOOLEAN, secure BOOLEAN, domain VARCHAR, useragent VARCHAR, referrer_domain VARCHAR, search_terms VARCHAR
+)
+WITH (
+  kafka_topic='dev.tenpercent.jleow.flog.flat.json', value_format='JSON', timestamp='time'
+);
+
+
+DROP STREAM flog_search_terms;
+CREATE STREAM flog_search_terms WITH (value_format='json', timestamp='time') AS
+SELECT d, time, user_id, LCASE(search_terms) AS search_terms FROM flog
+WHERE search_terms IS NOT NULL AND LEN(search_terms) < 30;
+
+-- COUNT(DISTINCT) unsupported in latest ksql (probably never supported)
+DROP TABLE search_term_counts_last_hour;
+CREATE TABLE search_term_counts_last_hour WITH (value_format='json') AS
+SELECT search_terms, COUNT(user_id) AS search_count
+FROM flog_search_terms WINDOW TUMBLING (SIZE 3600 SECOND)
+GROUP BY search_terms HAVING COUNT(*) > 1;
+
+DROP TABLE search_term_counts_last_day;
+CREATE TABLE search_term_counts_last_day WITH (value_format='json') AS
+SELECT search_terms, COUNT(user_id) AS search_count
+FROM flog_search_terms WINDOW HOPPING (SIZE 86400 SECOND, ADVANCE BY 3600 SECOND)
+GROUP BY search_terms HAVING COUNT(*) > 1;
+
+DROP TABLE search_term_counts_last_week;
+CREATE TABLE search_term_counts_last_week WITH (value_format='json') AS
+SELECT search_terms, COUNT(user_id) AS search_count
+FROM flog_search_terms WINDOW HOPPING (SIZE 604800 SECOND, ADVANCE BY 86400 SECOND)
+GROUP BY search_terms HAVING COUNT(*) > 1;
+
+
+
+
+SELECT dataset, d, TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm:ss'), domain, SUBSTRING(search_terms, 0, 50) 
+FROM flog 
+WHERE (rowtime % 10000) = 0;
+
+-- Trending searches - simple
+SELECT TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm'), search_terms, search_count
+FROM search_term_counts_last_hour
+WHERE search_count > 200;
+
+SELECT TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm'), search_terms, search_count
+FROM search_term_counts_last_day
+WHERE search_count > 200 and search_count < 2000;
+
+-- Trending searches - specific term
+SELECT TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm'), search_terms, search_count
+FROM search_term_counts_last_day
+WHERE search_terms = '...';
+
+
+
+
+
+
+
+
+CREATE TABLE foo AS SELECT h.search_terms, h.search_count, d.search_count FROM search_term_counts_last_hour h LEFT JOIN search_term_counts_last_day d ON h.search_terms = d.search_terms AND h.rowtime = d.rowtime + 82800000;
+
+
+
+
+
+
+
+
+-- These need to go outside of KSQL
+DROP TABLE search_term_counts_by_hour;
+CREATE TABLE search_term_counts_by_hour WITH (value_format='json', timestamp='hour_ending') AS SELECT search_terms, search_count, (rowtime + (60*60*1000)) AS hour_ending FROM search_term_counts_last_hour PARTITION BY search_terms;
+
+DROP TABLE search_term_counts_by_day;
+CREATE TABLE search_term_counts_by_day WITH (value_format='json', timestamp='day_ending') AS SELECT search_terms, search_count, (rowtime + (24*60*60*1000)) AS day_ending FROM search_term_counts_last_day PARTITION BY search_terms;
+
+SELECT h.search_terms, h.search_count, d.search_count FROM search_term_counts_by_hour h LEFT JOIN search_term_counts_by_day d ON h.rowkey = d.rowkey;
+
+
+DROP TABLE search_term_users_last_hour;
+CREATE TABLE search_term_users_last_hour WITH (value_format='json') AS
+SELECT search_terms, TOPKDISTINCT(user_id, 500) AS user_id
+FROM flog_search_terms WINDOW TUMBLING (SIZE 3600 SECOND)
+GROUP BY search_terms HAVING COUNT(*) > 1;
+
+
+
+
+
+
+Connexity Wiki:
+- Example queries
+- Document search_terms_... tables
+- Mention how search_terms was extracted as events with spaces in their names

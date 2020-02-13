@@ -1,0 +1,33 @@
+{"ksql": "SELECT * FROM flog LIMIT 100;","streamsProperties": {}}
+
+{"ksql": "SELECT search_terms, search_count FROM search_term_counts WHERE search_count > 10;","streamsProperties": {}}
+
+{"ksql": "SHOW TABLES;"}
+
+{"ksql": "SHOW STREAMS;"}
+
+{"ksql": "CREATE TABLE search_term_counts WITH (value_format='json') AS SELECT LCASE(search_terms) AS search_terms, COUNT(DISTINCT user_id) AS search_count FROM flog WINDOW TUMBLING (size 1800 second) WHERE search_terms IS NOT NULL GROUP BY search_terms HAVING COUNT(*) > 1;"}
+
+With properties:
+{"ksql":"SHOW TABLES;","streamsProperties":{"commit.interval.ms":5000,"ksql.fail.on.deserialization.error":"yo","auto.offset.reset":"earliest"}}
+
+
+
+
+DESCRIBE TABLE:
+[{"description":{"statementText":"","name":"SEARCH_TERM_COUNTS_LAST_DAY","readQueries":["CTAS_SEARCH_TERM_COUNTS_LAST_DAY : CREATE TABLE search_term_counts_last_day WITH (value_format='json') AS\nSELECT search_terms, COUNT(DISTINCT user_id) AS search_count\nFROM flog_search_terms WINDOW HOPPING (SIZE 86400 SECOND, ADVANCE BY 3600 SECOND)\nGROUP BY search_terms HAVING COUNT(*) > 1;"],"writeQueries":["id:CTAS_SEARCH_TERM_COUNTS_LAST_DAY - CREATE TABLE search_term_counts_last_day WITH (value_format='json') AS\nSELECT search_terms, COUNT(DISTINCT user_id) AS search_count\nFROM flog_search_terms WINDOW HOPPING (SIZE 86400 SECOND, ADVANCE BY 3600 SECOND)\nGROUP BY search_terms HAVING COUNT(*) > 1;"],"schema":[{"name":"ROWTIME","type":"BIGINT"},{"name":"ROWKEY","type":"VARCHAR(STRING)"},{"name":"SEARCH_TERMS","type":"VARCHAR(STRING)"},{"name":"SEARCH_COUNT","type":"BIGINT"}],"type":"TABLE","key":"FLOG_SEARCH_TERMS.SEARCH_TERMS","timestamp":"","statistics":"messages-per-sec:   1261.74   total-messages: 205076413last-message: 4/19/18 8:54:21 AM PDT","errorStats":" failed-messages:         0 failed-messages-per-sec:         0      last-failed:       n/a","extended":true,"serdes":"JSON","kafkaTopic":"SEARCH_TERM_COUNTS_LAST_DAY","topology":"","executionPlan":"","replication":1,"partitions":4}}]
+
+[{"description":{"statementText":"","name":"FLOG_SEARCH_TERMS","readQueries":["CSAS_FLOG_SEARCH_TERMS : CREATE STREAM flog_search_terms WITH (value_format='json', timestamp='time') AS\nSELECT d, time, user_id, LCASE(search_terms) AS search_terms FROM flog\nWHERE search_terms IS NOT NULL;"],"writeQueries":["id:CSAS_FLOG_SEARCH_TERMS - CREATE STREAM flog_search_terms WITH (value_format='json', timestamp='time') AS\nSELECT d, time, user_id, LCASE(search_terms) AS search_terms FROM flog\nWHERE search_terms IS NOT NULL;"],"schema":[{"name":"ROWTIME","type":"BIGINT"},{"name":"ROWKEY","type":"VARCHAR(STRING)"},{"name":"D","type":"INTEGER"},{"name":"TIME","type":"BIGINT"},{"name":"USER_ID","type":"VARCHAR(STRING)"},{"name":"SEARCH_TERMS","type":"VARCHAR(STRING)"}],"type":"STREAM","key":"","timestamp":"TIME","statistics":"c-total-messages:  37444051 messages-per-sec:249.26   total-messages:  16289027     last-message: 4/19/18 8:51:44 AM PDT","errorStats":"c-failed-messages:         0  failed-messages:         0 failed-messages-per-sec:         0      last-failed:       n/a","extended":true,"serdes":"JSON","kafkaTopic":"FLOG_SEARCH_TERMS","topology":"","executionPlan":"","replication":1,"partitions":4}}]
+
+
+SHOW TABLES/STREAMS:
+[{"tables":{"statementText":"SHOW TABLES;","tables":[{"name":"SEARCH_TERM_COUNTS","topic":"SEARCH_TERM_COUNTS","format":"JSON","isWindowed":true}]}}]
+[{"streams":{"statementText":"SHOW STREAMS;","streams":[{"name":"FLOG","topic":"dev.tenpercent.jleow.flog.flat.json","format":"JSON"}]}}]
+
+
+DROP table:
+[{"currentStatus":{"statementText":"DROP TABLE search_term_counts;","commandId":"table/SEARCH_TERM_COUNTS/drop","commandStatus":{"status":"SUCCESS","message":"Source SEARCH_TERM_COUNTS was dropped"}}]
+
+
+CREATE table:
+[{"currentStatus":{"statementText":"CREATE TABLE search_term_counts WITH (value_format='json') AS SELECT LCASE(search_terms) AS search_terms, COUNT(DISTINCT user_id) AS search_count FROM flog WINDOW TUMBLING (size 1800 second) WHERE search_terms IS NOT NULL GROUP BY search_terms HAVING COUNT(*) > 1;","commandId":"table/SEARCH_TERM_COUNTS/create","commandStatus":{"status":"SUCCESS","message":"Table created and running"}}]
